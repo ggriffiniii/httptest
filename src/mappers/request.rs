@@ -1,7 +1,6 @@
 use super::Mapper;
-use crate::FullRequest;
 
-pub fn method<C>(inner: C) -> impl Mapper<FullRequest, Out = C::Out>
+pub fn method<C>(inner: C) -> Method<C>
 where
     C: Mapper<str>,
 {
@@ -9,18 +8,18 @@ where
 }
 #[derive(Debug)]
 pub struct Method<C>(C);
-impl<C> Mapper<FullRequest> for Method<C>
+impl<C, B> Mapper<hyper::Request<B>> for Method<C>
 where
     C: Mapper<str>,
 {
     type Out = C::Out;
 
-    fn map(&mut self, input: &FullRequest) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
         self.0.map(input.method().as_str())
     }
 }
 
-pub fn path<C>(inner: C) -> impl Mapper<FullRequest, Out = C::Out>
+pub fn path<C>(inner: C) -> Path<C>
 where
     C: Mapper<str>,
 {
@@ -28,18 +27,18 @@ where
 }
 #[derive(Debug)]
 pub struct Path<C>(C);
-impl<C> Mapper<FullRequest> for Path<C>
+impl<C, B> Mapper<hyper::Request<B>> for Path<C>
 where
     C: Mapper<str>,
 {
     type Out = C::Out;
 
-    fn map(&mut self, input: &FullRequest) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
         self.0.map(input.uri().path())
     }
 }
 
-pub fn query<C>(inner: C) -> impl Mapper<FullRequest, Out = C::Out>
+pub fn query<C>(inner: C) -> Query<C>
 where
     C: Mapper<str>,
 {
@@ -47,18 +46,18 @@ where
 }
 #[derive(Debug)]
 pub struct Query<C>(C);
-impl<C> Mapper<FullRequest> for Query<C>
+impl<C, B> Mapper<hyper::Request<B>> for Query<C>
 where
     C: Mapper<str>,
 {
     type Out = C::Out;
 
-    fn map(&mut self, input: &FullRequest) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
         self.0.map(input.uri().query().unwrap_or(""))
     }
 }
 
-pub fn headers<C>(inner: C) -> impl Mapper<FullRequest, Out = C::Out>
+pub fn headers<C>(inner: C) -> Headers<C>
 where
     C: Mapper<[(Vec<u8>, Vec<u8>)]>,
 {
@@ -66,13 +65,13 @@ where
 }
 #[derive(Debug)]
 pub struct Headers<C>(C);
-impl<C> Mapper<FullRequest> for Headers<C>
+impl<C, B> Mapper<hyper::Request<B>> for Headers<C>
 where
     C: Mapper<[(Vec<u8>, Vec<u8>)]>,
 {
     type Out = C::Out;
 
-    fn map(&mut self, input: &FullRequest) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
         let headers: Vec<(Vec<u8>, Vec<u8>)> = input
             .headers()
             .iter()
@@ -82,21 +81,18 @@ where
     }
 }
 
-pub fn body<C>(inner: C) -> impl Mapper<FullRequest, Out = C::Out>
-where
-    C: Mapper<[u8]>,
-{
+pub fn body<C>(inner: C) -> Body<C> {
     Body(inner)
 }
 #[derive(Debug)]
 pub struct Body<C>(C);
-impl<C> Mapper<FullRequest> for Body<C>
+impl<C, B> Mapper<hyper::Request<B>> for Body<C>
 where
-    C: Mapper<[u8]>,
+    C: Mapper<B>,
 {
     type Out = C::Out;
 
-    fn map(&mut self, input: &FullRequest) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
         self.0.map(input.body())
     }
 }
@@ -109,12 +105,12 @@ mod tests {
     #[test]
     fn test_path() {
         let req = hyper::Request::get("https://example.com/foo")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         assert!(path(eq("/foo")).map(&req));
 
         let req = hyper::Request::get("https://example.com/foobar")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         assert!(path(eq("/foobar")).map(&req))
     }
@@ -122,11 +118,11 @@ mod tests {
     #[test]
     fn test_query() {
         let req = hyper::Request::get("https://example.com/path?foo=bar&baz=bat")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         assert!(query(eq("foo=bar&baz=bat")).map(&req));
         let req = hyper::Request::get("https://example.com/path?search=1")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         assert!(query(eq("search=1")).map(&req));
     }
@@ -134,11 +130,11 @@ mod tests {
     #[test]
     fn test_method() {
         let req = hyper::Request::get("https://example.com/foo")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         assert!(method(eq("GET")).map(&req));
         let req = hyper::Request::post("https://example.com/foobar")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         assert!(method(eq("POST")).map(&req));
     }
@@ -150,7 +146,7 @@ mod tests {
             (Vec::from("content-length"), Vec::from("101")),
         ];
         let mut req = hyper::Request::get("https://example.com/path?key%201=value%201&key2")
-            .body(Vec::new())
+            .body("")
             .unwrap();
         req.headers_mut().extend(vec![
             (
@@ -168,10 +164,9 @@ mod tests {
 
     #[test]
     fn test_body() {
-        use bstr::{ByteVec, B};
         let req = hyper::Request::get("https://example.com/foo")
-            .body(Vec::from_slice("my request body"))
+            .body("my request body")
             .unwrap();
-        assert!(body(eq(B("my request body"))).map(&req));
+        assert!(body(eq("my request body")).map(&req));
     }
 }

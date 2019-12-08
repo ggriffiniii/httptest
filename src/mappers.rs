@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 use std::fmt;
-use std::marker::PhantomData;
 
 // import the any_of and all_of macros from crate root so they are accessible if
 // people glob import this module.
@@ -36,7 +35,7 @@ where
     }
 }
 
-pub fn any<IN>() -> impl Mapper<IN, Out = bool> {
+pub fn any() -> Any {
     Any
 }
 #[derive(Debug)]
@@ -49,10 +48,9 @@ impl<IN> Mapper<IN> for Any {
     }
 }
 
-pub fn contains<T, IN>(value: T) -> impl Mapper<IN, Out = bool>
+pub fn contains<T>(value: T) -> Contains<T>
 where
     T: AsRef<[u8]> + fmt::Debug + Send,
-    IN: AsRef<[u8]> + ?Sized,
 {
     Contains(value)
 }
@@ -71,11 +69,7 @@ where
     }
 }
 
-pub fn eq<T, IN>(value: T) -> impl Mapper<IN, Out = bool>
-where
-    T: Borrow<IN> + fmt::Debug + Send,
-    IN: PartialEq + ?Sized,
-{
+pub fn eq<T>(value: T) -> Eq<T> {
     Eq(value)
 }
 #[derive(Debug)]
@@ -92,10 +86,7 @@ where
     }
 }
 
-pub fn matches<IN>(value: &str) -> impl Mapper<IN, Out = bool>
-where
-    IN: AsRef<[u8]> + ?Sized,
-{
+pub fn matches(value: &str) -> Matches {
     let regex = regex::bytes::Regex::new(value).expect("failed to create regex");
     Matches(regex)
 }
@@ -112,17 +103,11 @@ where
     }
 }
 
-pub fn not<C, IN>(inner: C) -> impl Mapper<IN, Out = bool>
-where
-    C: Mapper<IN, Out = bool>,
-    IN: ?Sized,
-{
-    Not(inner, PhantomData)
+pub fn not<C>(inner: C) -> Not<C> {
+    Not(inner)
 }
-pub struct Not<C, IN>(C, PhantomData<fn(IN)>)
-where
-    IN: ?Sized;
-impl<C, IN> Mapper<IN> for Not<C, IN>
+pub struct Not<C>(C);
+impl<C, IN> Mapper<IN> for Not<C>
 where
     C: Mapper<IN, Out = bool>,
     IN: ?Sized,
@@ -133,17 +118,16 @@ where
         !self.0.map(input)
     }
 }
-impl<C, IN> fmt::Debug for Not<C, IN>
+impl<C> fmt::Debug for Not<C>
 where
-    C: Mapper<IN, Out = bool>,
-    IN: ?Sized,
+    C: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Not({:?})", &self.0)
     }
 }
 
-pub fn all_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> impl Mapper<IN, Out = bool>
+pub fn all_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AllOf<IN>
 where
     IN: fmt::Debug + ?Sized,
 {
@@ -165,7 +149,7 @@ where
     }
 }
 
-pub fn any_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> impl Mapper<IN, Out = bool>
+pub fn any_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AnyOf<IN>
 where
     IN: fmt::Debug + ?Sized,
 {
@@ -186,9 +170,8 @@ where
     }
 }
 
-pub fn uri_decoded<IN, C>(inner: C) -> impl Mapper<IN, Out = C::Out>
+pub fn uri_decoded<C>(inner: C) -> UriDecoded<C>
 where
-    IN: AsRef<[u8]> + ?Sized,
     C: Mapper<[(String, String)]>,
 {
     UriDecoded(inner)
@@ -210,9 +193,8 @@ where
     }
 }
 
-pub fn json_decoded<IN, C>(inner: C) -> impl Mapper<IN, Out = C::Out>
+pub fn json_decoded<C>(inner: C) -> JsonDecoded<C>
 where
-    IN: AsRef<[u8]> + ?Sized,
     C: Mapper<serde_json::Value>,
 {
     JsonDecoded(inner)
@@ -233,9 +215,8 @@ where
     }
 }
 
-pub fn lowercase<IN, C>(inner: C) -> impl Mapper<IN, Out = C::Out>
+pub fn lowercase<C>(inner: C) -> Lowercase<C>
 where
-    IN: AsRef<[u8]> + ?Sized,
     C: Mapper<[u8]>,
 {
     Lowercase(inner)
@@ -321,7 +302,7 @@ mod tests {
         ];
         let mut c = request::query(uri_decoded(eq(expected)));
         let req = http::Request::get("https://example.com/path?key%201=value%201&key2")
-            .body(Vec::new())
+            .body("")
             .unwrap();
 
         assert_eq!(true, c.map(&req));

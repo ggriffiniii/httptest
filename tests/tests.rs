@@ -126,10 +126,7 @@ async fn test_cycle() {
             request::path(eq("/foo"))
         ])
         .times(Times::Exactly(4))
-        .respond_with(cycle(vec![
-            Box::new(status_code(200)),
-            Box::new(status_code(404)),
-        ])),
+        .respond_with(cycle![status_code(200), status_code(404),]),
     );
 
     // Issue multiple GET /foo to the server and verify it alternates between 200 and 404 codes.

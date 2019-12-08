@@ -2,6 +2,8 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
+pub use crate::cycle;
+
 pub trait Responder: Send + fmt::Debug {
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>>;
 }
@@ -27,13 +29,13 @@ pub fn json_encoded<T>(data: T) -> impl Responder
 where
     T: serde::Serialize,
 {
-    JsonEncoded(serde_json::to_vec(&data).unwrap())
+    JsonEncoded(serde_json::to_string(&data).unwrap())
 }
 #[derive(Debug)]
-pub struct JsonEncoded(Vec<u8>);
+pub struct JsonEncoded(String);
 impl Responder for JsonEncoded {
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
-        async fn _respond(body: Vec<u8>) -> http::Response<hyper::Body> {
+        async fn _respond(body: String) -> http::Response<hyper::Body> {
             hyper::Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
@@ -44,7 +46,10 @@ impl Responder for JsonEncoded {
     }
 }
 
-impl Responder for crate::FullResponse {
+impl<B> Responder for hyper::Response<B>
+where
+    B: Clone + Into<hyper::Body> + Send + fmt::Debug,
+{
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
         async fn _respond(resp: http::Response<hyper::Body>) -> http::Response<hyper::Body> {
             resp
@@ -61,7 +66,6 @@ impl Responder for crate::FullResponse {
     }
 }
 
-// TODO: make a macro for this to avoid the vec![Box::new] dance.
 pub fn cycle(responders: Vec<Box<dyn Responder>>) -> impl Responder {
     if responders.is_empty() {
         panic!("empty vector provided to cycle");

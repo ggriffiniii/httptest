@@ -1,10 +1,14 @@
+use crate::mappers::Matcher;
 use crate::responders::Responder;
-use crate::{FullRequest, Matcher};
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+// type alias for a request that has read a complete body into memory.
+type FullRequest = hyper::Request<Vec<u8>>;
+
+/// The Server
 pub struct Server {
     trigger_shutdown: Option<futures::channel::oneshot::Sender<()>>,
     join_handle: Option<std::thread::JoinHandle<()>>,
@@ -13,6 +17,10 @@ pub struct Server {
 }
 
 impl Server {
+    /// Start a server.
+    ///
+    /// The server will run in the background. On Drop it will terminate and
+    /// assert it's expectations.
     pub fn run() -> Self {
         use futures::future::FutureExt;
         use hyper::{
@@ -70,10 +78,16 @@ impl Server {
         }
     }
 
+    /// Get the address the server is listening on.
     pub fn addr(&self) -> SocketAddr {
         self.addr
     }
 
+    /// Get a fully formed url to the servers address.
+    ///
+    /// If the server is listening on port 1234.
+    ///
+    /// `server.url("/foo?q=1") == "http://localhost:1234/foo?q=1"`
     pub fn url<T>(&self, path_and_query: T) -> http::Uri
     where
         http::uri::PathAndQuery: http::HttpTryFrom<T>,
@@ -86,10 +100,13 @@ impl Server {
             .unwrap()
     }
 
+    /// Add a new expectation to the server.
     pub fn expect(&self, expectation: Expectation) {
         self.state.push_expectation(expectation);
     }
 
+    /// Verify all registered expectations. Panic if any are not met, then clear
+    /// all expectations leaving the server running in a clean state.
     pub fn verify_and_clear(&mut self) {
         let mut state = self.state.lock();
         for expectation in state.expected.iter() {
@@ -183,15 +200,22 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
     }
 }
 
+/// How many requests should an expectation receive.
 #[derive(Debug, Clone)]
 pub enum Times {
+    /// Allow any number of requests.
     AnyNumber,
+    /// Require that at least this many requests are received.
     AtLeast(usize),
+    /// Require that no more than this many requests are received.
     AtMost(usize),
+    /// Require that the number of requests received is within this range.
     Between(std::ops::RangeInclusive<usize>),
+    /// Require that exactly this many requests are received.
     Exactly(usize),
 }
 
+/// An expectation to be asserted by the server.
 pub struct Expectation {
     matcher: Box<dyn Matcher<FullRequest>>,
     cardinality: Times,
@@ -200,6 +224,7 @@ pub struct Expectation {
 }
 
 impl Expectation {
+    /// What requests will this expectation match.
     pub fn matching(matcher: impl Matcher<FullRequest> + 'static) -> ExpectationBuilder {
         ExpectationBuilder {
             matcher: Box::new(matcher),
@@ -208,12 +233,14 @@ impl Expectation {
     }
 }
 
+/// Define expectations using a builder pattern.
 pub struct ExpectationBuilder {
     matcher: Box<dyn Matcher<FullRequest>>,
     cardinality: Times,
 }
 
 impl ExpectationBuilder {
+    /// How many requests should this expectation receive.
     pub fn times(self, cardinality: Times) -> ExpectationBuilder {
         ExpectationBuilder {
             cardinality,
@@ -221,6 +248,7 @@ impl ExpectationBuilder {
         }
     }
 
+    /// What should this expectation respond with.
     pub fn respond_with(self, responder: impl Responder + 'static) -> Expectation {
         Expectation {
             matcher: self.matcher,

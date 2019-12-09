@@ -215,6 +215,26 @@ where
     }
 }
 
+pub fn map_fn<F>(f: F) -> MapFn<F> {
+    MapFn(f)
+}
+pub struct MapFn<F>(F);
+impl<IN, F> Mapper<IN> for MapFn<F>
+where
+    F: Fn(&IN) -> bool + Send,
+{
+    type Out = bool;
+
+    fn map(&mut self, input: &IN) -> bool {
+        self.0(input)
+    }
+}
+impl<F> fmt::Debug for MapFn<F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MapFn")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,5 +317,14 @@ mod tests {
         assert_eq!(true, c.map("FoOBar"));
         assert_eq!(true, c.map("foobar"));
         assert_eq!(false, c.map("bar"));
+    }
+
+    #[test]
+    fn test_fn_mapper() {
+        let mut c = map_fn(|input: &u64| input % 2 == 0);
+        assert_eq!(true, c.map(&6));
+        assert_eq!(true, c.map(&20));
+        assert_eq!(true, c.map(&0));
+        assert_eq!(false, c.map(&11));
     }
 }

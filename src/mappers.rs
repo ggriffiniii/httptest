@@ -48,27 +48,6 @@ impl<IN> Mapper<IN> for Any {
     }
 }
 
-pub fn contains<T>(value: T) -> Contains<T>
-where
-    T: AsRef<[u8]> + fmt::Debug + Send,
-{
-    Contains(value)
-}
-#[derive(Debug)]
-pub struct Contains<T>(T);
-impl<IN, T> Mapper<IN> for Contains<T>
-where
-    T: AsRef<[u8]> + fmt::Debug + Send,
-    IN: AsRef<[u8]> + ?Sized,
-{
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
-        use bstr::ByteSlice;
-        input.as_ref().contains_str(self.0.as_ref())
-    }
-}
-
 pub fn eq<T>(value: T) -> Eq<T> {
     Eq(value)
 }
@@ -241,14 +220,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_contains() {
-        let mut c = contains("foo");
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("bazfoobar"));
-        assert_eq!(false, c.map("bar"));
-    }
-
-    #[test]
     fn test_eq() {
         let mut c = eq("foo");
         assert_eq!(false, c.map("foobar"));
@@ -277,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_all_of() {
-        let mut c = all_of![contains("foo"), contains("bar")];
+        let mut c = all_of![matches("foo"), matches("bar")];
         assert_eq!(true, c.map("foobar"));
         assert_eq!(true, c.map("barfoo"));
         assert_eq!(false, c.map("foo"));
@@ -286,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_any_of() {
-        let mut c = any_of![contains("foo"), contains("bar")];
+        let mut c = any_of![matches("foo"), matches("bar")];
         assert_eq!(true, c.map("foobar"));
         assert_eq!(true, c.map("barfoo"));
         assert_eq!(true, c.map("foo"));
@@ -321,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_lowercase() {
-        let mut c = lowercase(contains("foo"));
+        let mut c = lowercase(matches("foo"));
         assert_eq!(true, c.map("FOO"));
         assert_eq!(true, c.map("FoOBar"));
         assert_eq!(true, c.map("foobar"));

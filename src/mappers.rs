@@ -65,9 +65,33 @@ where
     }
 }
 
-pub fn matches(value: &str) -> Matches {
-    let regex = regex::bytes::Regex::new(value).expect("failed to create regex");
-    Matches(regex)
+pub trait IntoRegex {
+    fn into_regex(self) -> regex::bytes::Regex;
+}
+impl IntoRegex for &str {
+    fn into_regex(self) -> regex::bytes::Regex {
+        regex::bytes::Regex::new(self).expect("failed to create regex")
+    }
+}
+impl IntoRegex for String {
+    fn into_regex(self) -> regex::bytes::Regex {
+        regex::bytes::Regex::new(&self).expect("failed to create regex")
+    }
+}
+impl IntoRegex for &mut regex::bytes::RegexBuilder {
+    fn into_regex(self) -> regex::bytes::Regex {
+        self.build().expect("failed to create regex")
+    }
+}
+impl IntoRegex for regex::bytes::Regex {
+    fn into_regex(self) -> regex::bytes::Regex {
+        self
+    }
+}
+
+pub fn matches(value: impl IntoRegex) -> Matches {
+    //let regex = regex::bytes::Regex::new(value).expect("failed to create regex");
+    Matches(value.into_regex())
 }
 #[derive(Debug)]
 pub struct Matches(regex::bytes::Regex);
@@ -250,11 +274,36 @@ mod tests {
 
     #[test]
     fn test_matches() {
+        // regex from str
         let mut c = matches(r#"^foo\d*bar$"#);
         assert_eq!(true, c.map("foobar"));
         assert_eq!(true, c.map("foo99bar"));
         assert_eq!(false, c.map("foo99barz"));
         assert_eq!(false, c.map("bat"));
+
+        // regex from String
+        let mut c = matches(r#"^foo\d*bar$"#.to_owned());
+        assert_eq!(true, c.map("foobar"));
+        assert_eq!(true, c.map("foo99bar"));
+        assert_eq!(false, c.map("foo99barz"));
+        assert_eq!(false, c.map("bat"));
+
+        // regex from RegexBuilder
+        let mut c = matches(regex::bytes::RegexBuilder::new("foobar").case_insensitive(true));
+        assert_eq!(true, c.map("foobar"));
+        assert_eq!(true, c.map("FOOBAR"));
+        assert_eq!(false, c.map("FOO99BAR"));
+
+        // regex from Regex
+        let mut c = matches(
+            regex::bytes::RegexBuilder::new("foobar")
+                .case_insensitive(true)
+                .build()
+                .unwrap(),
+        );
+        assert_eq!(true, c.map("foobar"));
+        assert_eq!(true, c.map("FOOBAR"));
+        assert_eq!(false, c.map("FOO99BAR"));
     }
 
     #[test]

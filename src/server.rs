@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 // type alias for a request that has read a complete body into memory.
-type FullRequest = hyper::Request<Vec<u8>>;
+type FullRequest = hyper::Request<hyper::body::Bytes>;
 
 /// The Server
 pub struct Server {
@@ -44,7 +44,7 @@ impl Server {
                                 // read the full body into memory prior to handing it to mappers.
                                 let (head, body) = req.into_parts();
                                 let full_body = hyper::body::to_bytes(body).await?;
-                                let req = hyper::Request::from_parts(head, full_body.to_vec());
+                                let req = hyper::Request::from_parts(head, full_body);
                                 log::debug!("Received Request: {:?}", req);
                                 let resp = on_req(state, req).await;
                                 log::debug!("Sending Response: {:?}", resp);

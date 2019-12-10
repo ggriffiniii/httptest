@@ -75,7 +75,7 @@
 //!
 //! ## Request Matchers
 //!
-//! Defining which request an expecation matches is done in a composoble manner
+//! Defining which request an expecation matches is done in a composable manner
 //! using a series of traits. The core of which is
 //! [Mapper](mappers/trait.Mapper.html). The `Mapper` trait is generic
 //! over an input type, has an associated `Out` type, and defines a single method
@@ -88,7 +88,7 @@
 //! Matcher trait simply provides a `matches` method.
 //!
 //! A request matcher is any `Matcher` that takes accepts a
-//! `hyper::Request<Vec<u8>>` as input.
+//! `hyper::Request<hyper::body::Bytes>` as input.
 //!
 //! With that understanding we can discuss how to easily define a request
 //! matcher. There are a variety of pre-defined mappers within the `mappers`

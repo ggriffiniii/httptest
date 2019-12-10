@@ -95,7 +95,6 @@ where
         async fn _respond(resp: hyper::Response<hyper::Body>) -> hyper::Response<hyper::Body> {
             resp
         }
-        // Turn &hyper::Response<Vec<u8>> into a hyper::Response<hyper::Body>
         let mut builder = hyper::Response::builder();
         builder = builder
             .status(self.status().clone())

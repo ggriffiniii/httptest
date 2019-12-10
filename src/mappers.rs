@@ -9,10 +9,8 @@ use std::fmt;
 
 // import the any_of and all_of macros from crate root so they are accessible if
 // people glob import this module.
-/// Accept a list of matchers and returns true if all matchers are true.
 #[doc(inline)]
 pub use crate::all_of;
-/// Accept a list of matchers and returns true if any matcher is true.
 #[doc(inline)]
 pub use crate::any_of;
 
@@ -412,7 +410,7 @@ mod tests {
             ("key2".to_owned(), "".to_owned()),
         ];
         let mut c = request::query(url_decoded(eq(expected)));
-        let req = http::Request::get("https://example.com/path?key%201=value%201&key2")
+        let req = hyper::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
             .unwrap();
 

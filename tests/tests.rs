@@ -1,9 +1,10 @@
 use httptest::{mappers::*, responders::*, Expectation, Times};
 
-async fn read_response_body(resp: hyper::Response<hyper::Body>) -> hyper::Response<Vec<u8>> {
-    use futures::stream::TryStreamExt;
+async fn read_response_body(
+    resp: hyper::Response<hyper::Body>,
+) -> hyper::Response<hyper::body::Bytes> {
     let (head, body) = resp.into_parts();
-    let body = body.try_concat().await.unwrap().to_vec();
+    let body = hyper::body::to_bytes(body).await.unwrap();
     hyper::Response::from_parts(head, body)
 }
 

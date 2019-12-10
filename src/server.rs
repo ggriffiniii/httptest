@@ -43,8 +43,7 @@ impl Server {
                             async move {
                                 // read the full body into memory prior to handing it to mappers.
                                 let (head, body) = req.into_parts();
-                                use futures::TryStreamExt;
-                                let full_body = body.try_concat().await?;
+                                let full_body = hyper::body::to_bytes(body).await?;
                                 let req = hyper::Request::from_parts(head, full_body.to_vec());
                                 log::debug!("Received Request: {:?}", req);
                                 let resp = on_req(state, req).await;
@@ -61,7 +60,11 @@ impl Server {
         let addr = server.local_addr();
         let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
         let join_handle = std::thread::spawn(move || {
-            let mut runtime = tokio::runtime::current_thread::Runtime::new().unwrap();
+            let mut runtime = tokio::runtime::Builder::new()
+                .basic_scheduler()
+                .enable_all()
+                .build()
+                .unwrap();
             runtime.block_on(async move {
                 futures::select! {
                     _ = server.fuse() => {},
@@ -88,11 +91,12 @@ impl Server {
     /// If the server is listening on port 1234.
     ///
     /// `server.url("/foo?q=1") == "http://localhost:1234/foo?q=1"`
-    pub fn url<T>(&self, path_and_query: T) -> http::Uri
+    pub fn url<T>(&self, path_and_query: T) -> hyper::Uri
     where
-        http::uri::PathAndQuery: http::HttpTryFrom<T>,
+        http::uri::PathAndQuery: std::convert::TryFrom<T>,
+        <http::uri::PathAndQuery as std::convert::TryFrom<T>>::Error: Into<http::Error>,
     {
-        http::Uri::builder()
+        hyper::Uri::builder()
             .scheme("http")
             .authority(format!("{}", &self.addr).as_str())
             .path_and_query(path_and_query)
@@ -156,7 +160,7 @@ impl Drop for Server {
     }
 }
 
-async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::Body> {
+async fn on_req(state: ServerState, req: FullRequest) -> hyper::Response<hyper::Body> {
     let response_future = {
         let mut state = state.lock();
         let mut iter = state.expected.iter_mut();
@@ -198,8 +202,8 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
     if let Some(f) = response_future {
         f.await
     } else {
-        http::Response::builder()
-            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+        hyper::Response::builder()
+            .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(hyper::Body::empty())
             .unwrap()
     }
@@ -305,14 +309,14 @@ fn cardinality_error(
     matcher: &dyn Matcher<FullRequest>,
     cardinality: &Times,
     hit_count: usize,
-) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
+) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send + 'static>> {
     let body = hyper::Body::from(format!(
         "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
         matcher, hit_count, cardinality,
     ));
     Box::pin(async move {
-        http::Response::builder()
-            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+        hyper::Response::builder()
+            .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(body)
             .unwrap()
     })

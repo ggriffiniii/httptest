@@ -1,11 +1,12 @@
+//! Mappers that extract information from HTTP responses.
+
 use super::Mapper;
 
-pub fn status_code<C>(inner: C) -> StatusCode<C>
-where
-    C: Mapper<u16>,
-{
+/// Extract the status code from the HTTP response and pass it to the next mapper.
+pub fn status_code<C>(inner: C) -> StatusCode<C> {
     StatusCode(inner)
 }
+/// The `StatusCode` mapper returned by [status_code()](fn.status_code.html)
 #[derive(Debug)]
 pub struct StatusCode<C>(C);
 impl<C, B> Mapper<hyper::Response<B>> for StatusCode<C>
@@ -19,12 +20,12 @@ where
     }
 }
 
-pub fn headers<C>(inner: C) -> Headers<C>
-where
-    C: Mapper<[(Vec<u8>, Vec<u8>)]>,
-{
+/// Extract the headers from the HTTP response and pass the sequence to the next
+/// mapper.
+pub fn headers<C>(inner: C) -> Headers<C> {
     Headers(inner)
 }
+/// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
 pub struct Headers<C>(C);
 impl<C, B> Mapper<hyper::Response<B>> for Headers<C>
@@ -43,9 +44,11 @@ where
     }
 }
 
+/// Extract the body from the HTTP response and pass it to the next mapper.
 pub fn body<C>(inner: C) -> Body<C> {
     Body(inner)
 }
+/// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
 pub struct Body<C>(C);
 impl<C, B> Mapper<hyper::Response<B>> for Body<C>

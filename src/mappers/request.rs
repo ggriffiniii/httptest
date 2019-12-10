@@ -1,11 +1,12 @@
+//! Mappers that extract information from HTTP requests.
+
 use super::Mapper;
 
-pub fn method<C>(inner: C) -> Method<C>
-where
-    C: Mapper<str>,
-{
+/// Extract the method from the HTTP request and pass it to the next mapper.
+pub fn method<C>(inner: C) -> Method<C> {
     Method(inner)
 }
+/// The `Method` mapper returned by [method()](fn.method.html)
 #[derive(Debug)]
 pub struct Method<C>(C);
 impl<C, B> Mapper<hyper::Request<B>> for Method<C>
@@ -19,12 +20,11 @@ where
     }
 }
 
-pub fn path<C>(inner: C) -> Path<C>
-where
-    C: Mapper<str>,
-{
+/// Extract the path from the HTTP request and pass it to the next mapper.
+pub fn path<C>(inner: C) -> Path<C> {
     Path(inner)
 }
+/// The `Path` mapper returned by [path()](fn.path.html)
 #[derive(Debug)]
 pub struct Path<C>(C);
 impl<C, B> Mapper<hyper::Request<B>> for Path<C>
@@ -38,12 +38,11 @@ where
     }
 }
 
-pub fn query<C>(inner: C) -> Query<C>
-where
-    C: Mapper<str>,
-{
+/// Extract the query from the HTTP request and pass it to the next mapper.
+pub fn query<C>(inner: C) -> Query<C> {
     Query(inner)
 }
+/// The `Query` mapper returned by [query()](fn.query.html)
 #[derive(Debug)]
 pub struct Query<C>(C);
 impl<C, B> Mapper<hyper::Request<B>> for Query<C>
@@ -57,12 +56,12 @@ where
     }
 }
 
-pub fn headers<C>(inner: C) -> Headers<C>
-where
-    C: Mapper<[(Vec<u8>, Vec<u8>)]>,
-{
+/// Extract the headers from the HTTP request and pass the sequence to the next
+/// mapper.
+pub fn headers<C>(inner: C) -> Headers<C> {
     Headers(inner)
 }
+/// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
 pub struct Headers<C>(C);
 impl<C, B> Mapper<hyper::Request<B>> for Headers<C>
@@ -81,9 +80,11 @@ where
     }
 }
 
+/// Extract the body from the HTTP request and pass it to the next mapper.
 pub fn body<C>(inner: C) -> Body<C> {
     Body(inner)
 }
+/// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
 pub struct Body<C>(C);
 impl<C, B> Mapper<hyper::Request<B>> for Body<C>

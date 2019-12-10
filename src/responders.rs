@@ -1,16 +1,26 @@
+//! Responder implementations.
+//!
+//! Reponders determine how the server will respond.
+
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
+// import the cycle macro so that it's available if people glob import this module.
+#[doc(inline)]
 pub use crate::cycle;
 
+/// Respond with an HTTP response.
 pub trait Responder: Send + fmt::Debug {
+    /// Return a future that outputs an HTTP response.
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>>;
 }
 
+/// respond with the provided status code.
 pub fn status_code(code: u16) -> impl Responder {
     StatusCode(code)
 }
+/// The `StatusCode` responder returned by [status_code()](fn.status_code.html)
 #[derive(Debug)]
 pub struct StatusCode(u16);
 impl Responder for StatusCode {
@@ -25,12 +35,17 @@ impl Responder for StatusCode {
     }
 }
 
+/// respond with a body that is the json encoding of data.
+///
+/// The status code will be `200` and the content-type will be
+/// `application/json`.
 pub fn json_encoded<T>(data: T) -> impl Responder
 where
     T: serde::Serialize,
 {
     JsonEncoded(serde_json::to_string(&data).unwrap())
 }
+/// The `JsonEncoded` responder returned by [json_encoded()](fn.json_encoded.html)
 #[derive(Debug)]
 pub struct JsonEncoded(String);
 impl Responder for JsonEncoded {
@@ -46,12 +61,17 @@ impl Responder for JsonEncoded {
     }
 }
 
+/// respond with a body that is the url encoding of data.
+///
+/// The status code will be `200` and the content-type will be
+/// `application/x-www-form-urlencoded`.
 pub fn url_encoded<T>(data: T) -> impl Responder
 where
     T: serde::Serialize,
 {
     UrlEncoded(serde_urlencoded::to_string(&data).unwrap())
 }
+/// The `UrlEncoded` responder returned by [url_encoded()](fn.url_encoded.html)
 #[derive(Debug)]
 pub struct UrlEncoded(String);
 impl Responder for UrlEncoded {
@@ -87,12 +107,14 @@ where
     }
 }
 
+/// Cycle through the provided list of responders.
 pub fn cycle(responders: Vec<Box<dyn Responder>>) -> impl Responder {
     if responders.is_empty() {
         panic!("empty vector provided to cycle");
     }
     Cycle { idx: 0, responders }
 }
+/// The `Cycle` responder returned by [cycle()](fn.cycle.html)
 #[derive(Debug)]
 pub struct Cycle {
     idx: usize,

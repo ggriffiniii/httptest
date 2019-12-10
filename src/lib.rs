@@ -41,18 +41,19 @@
 //!
 //! # Server behavior
 //!
-//! The Server is started with [Server::run()](struct.Server.html#method.run).
+//! The Server is started with [run()](struct.Server.html#method.run).
 //!
 //! The server will run in a background thread until it's dropped. Once dropped
 //! it will assert that every configured expectation has been met or will panic.
-//! You can also use [server.verify_and_clear()](struct.Server.html#method.verify_and_clear)
+//! You can also use [verify_and_clear()](struct.Server.html#method.verify_and_clear)
 //! to assert and clear the expectations while keeping the server running.
 //!
-//! [server.addr()](struct.Server.html#method.addr) will return the address the
+//! [addr()](struct.Server.html#method.addr) will return the address the
 //! server is listening on.
 //!
-//! [server.url()](struct.Server.html#method.url) will
+//! [url()](struct.Server.html#method.url) will
 //! construct a fully formed http url to the path provided i.e.
+//!
 //! `server.url("/foo?key=value") == "https://<server_addr>/foo?key=value"`.
 //!
 //! # Defining Expecations
@@ -127,18 +128,22 @@
 //!
 //! ## Times
 //!
-//! Each expectation defines how many times a matching requests is expected to
+//! Each expectation defines how many times a matching request is expected to
 //! be received. The [Times](enum.Times.html) enum defines the possibility.
 //! `Times::Exactly(1)` is the default value of an `Expectation` if one is not
 //! specified with the
-//! [Expectation.times()](struct.Expectation.html#method.times) method.
+//! [times()](struct.ExpectationBuilder.html#method.times) method.
+//!
+//! The server will respond to any requests that violate the times request with
+//! a 500 status code and the server will subsequently panic on Drop.
 //!
 //! ## Responder
 //!
-//! responders define how the server will respond to a matched request. There
+//! Responders define how the server will respond to a matched request. There
 //! are a number of implemented responders within the responders module. In
 //! addition to the predefined responders you can provide any
-//! hyper::Response<Vec<u8>> or obviously implement your own Responder.
+//! `hyper::Response` with a body that can be cloned or implement your own
+//! Responder.
 //!
 //! ## Responder example
 //!
@@ -165,26 +170,38 @@
 //!
 //! ```
 
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 
-// hidden from docs here because it's re-rexported from the mappers module.
-#[doc(hidden)]
+/// true if all the provided matchers return true.
+///
+/// The macro exists to conveniently box a list of mappers and put them into a
+/// `Vec<Box<dyn Mapper>>`. The translation is:
+///
+/// `all_of![a, b] => all_of(vec![Box::new(a), Box::new(b)])`
 #[macro_export]
 macro_rules! all_of {
     ($($x:expr),*) => ($crate::mappers::all_of($crate::vec_of_boxes![$($x),*]));
     ($($x:expr,)*) => ($crate::all_of![$($x),*]);
 }
 
-// hidden from docs here because it's re-rexported from the mappers module.
-#[doc(hidden)]
+/// true if any of the provided matchers return true.
+///
+/// The macro exists to conveniently box a list of mappers and put them into a
+/// `Vec<Box<dyn Mapper>>`. The translation is:
+///
+/// `any_of![a, b] => any_of(vec![Box::new(a), Box::new(b)])`
 #[macro_export]
 macro_rules! any_of {
     ($($x:expr),*) => ($crate::mappers::any_of($crate::vec_of_boxes![$($x),*]));
     ($($x:expr,)*) => ($crate::any_of![$($x),*]);
 }
 
-// hidden from docs here because it's re-rexported from the responders module.
-#[doc(hidden)]
+/// a Responder that cycles through a list of responses.
+///
+/// The macro exists to conveniently box a list of responders and put them into a
+/// `Vec<Box<dyn Responder>>`. The translation is:
+///
+/// `cycle![a, b] => cycle(vec![Box::new(a), Box::new(b)])`
 #[macro_export]
 macro_rules! cycle {
     ($($x:expr),*) => ($crate::responders::cycle($crate::vec_of_boxes![$($x),*]));

@@ -284,10 +284,7 @@ where
 }
 
 /// lowercase the input and pass it to the next mapper.
-pub fn lowercase<M>(inner: M) -> Lowercase<M>
-where
-    M: Mapper<[u8]>,
-{
+pub fn lowercase<M>(inner: M) -> Lowercase<M> {
     Lowercase(inner)
 }
 /// The `Lowercase` mapper returned by [lowercase()](fn.lowercase.html)
@@ -325,6 +322,31 @@ where
 impl<F> fmt::Debug for MapFn<F> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MapFn")
+    }
+}
+
+/// inspect the input and pass it to the next mapper.
+///
+/// This logs the value as it passes it to the next mapper unchanged. Can be
+/// useful when troubleshooting why a matcher may not be working as intended.
+pub fn inspect<M>(inner: M) -> Inspect<M> {
+    Inspect(inner)
+}
+/// The `Inspect` mapper returned by [inspect()](fn.inspect.html)
+#[derive(Debug)]
+pub struct Inspect<M>(M);
+impl<IN, M> Mapper<IN> for Inspect<M>
+where
+    IN: fmt::Debug + ?Sized,
+    M: Mapper<IN>,
+    M::Out: fmt::Debug,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &IN) -> M::Out {
+        let output = self.0.map(input);
+        log::debug!("{:?}.map({:?}) == {:?}", self.0, input, output);
+        output
     }
 }
 
@@ -444,5 +466,13 @@ mod tests {
         assert_eq!(true, c.map(&20));
         assert_eq!(true, c.map(&0));
         assert_eq!(false, c.map(&11));
+    }
+
+    #[test]
+    fn test_inspect() {
+        let _ = pretty_env_logger::try_init();
+        let mut c = inspect(lowercase(matches("^foobar$")));
+        assert_eq!(true, c.map("Foobar"));
+        assert_eq!(false, c.map("Foobar1"));
     }
 }

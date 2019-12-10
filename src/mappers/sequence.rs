@@ -4,15 +4,15 @@ use super::Mapper;
 
 /// true if the provided mapper returns true for any of the elements in the
 /// sequence.
-pub fn contains<C>(inner: C) -> Contains<C> {
+pub fn contains<M>(inner: M) -> Contains<M> {
     Contains(inner)
 }
 /// The `Contains` mapper returned by [contains()](fn.contains.html)
 #[derive(Debug)]
-pub struct Contains<C>(C);
-impl<C, E> Mapper<[E]> for Contains<C>
+pub struct Contains<M>(M);
+impl<M, E> Mapper<[E]> for Contains<M>
 where
-    C: Mapper<E, Out = bool>,
+    M: Mapper<E, Out = bool>,
 {
     type Out = bool;
 

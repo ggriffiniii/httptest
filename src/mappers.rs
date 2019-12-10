@@ -96,20 +96,20 @@ where
 }
 
 /// Call Deref::deref() on the input and pass it to the next mapper.
-pub fn deref<C>(inner: C) -> Deref<C> {
+pub fn deref<M>(inner: M) -> Deref<M> {
     Deref(inner)
 }
 /// The `Deref` mapper returned by [deref()](fn.deref.html)
 #[derive(Debug)]
-pub struct Deref<C>(C);
-impl<C, IN> Mapper<IN> for Deref<C>
+pub struct Deref<M>(M);
+impl<M, IN> Mapper<IN> for Deref<M>
 where
-    C: Mapper<IN::Target>,
+    M: Mapper<IN::Target>,
     IN: std::ops::Deref,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &IN) -> C::Out {
+    fn map(&mut self, input: &IN) -> M::Out {
         self.0.map(input.deref())
     }
 }
@@ -162,14 +162,14 @@ where
 }
 
 /// invert the result of the inner mapper.
-pub fn not<C>(inner: C) -> Not<C> {
+pub fn not<M>(inner: M) -> Not<M> {
     Not(inner)
 }
 /// The `Not` mapper returned by [not()](fn.not.html)
-pub struct Not<C>(C);
-impl<C, IN> Mapper<IN> for Not<C>
+pub struct Not<M>(M);
+impl<M, IN> Mapper<IN> for Not<M>
 where
-    C: Mapper<IN, Out = bool>,
+    M: Mapper<IN, Out = bool>,
     IN: ?Sized,
 {
     type Out = bool;
@@ -178,9 +178,9 @@ where
         !self.0.map(input)
     }
 }
-impl<C> fmt::Debug for Not<C>
+impl<M> fmt::Debug for Not<M>
 where
-    C: fmt::Debug,
+    M: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Not({:?})", &self.0)
@@ -237,20 +237,20 @@ where
 }
 
 /// url decode the input and pass the resulting slice of key-value pairs to the next mapper.
-pub fn url_decoded<C>(inner: C) -> UrlDecoded<C> {
+pub fn url_decoded<M>(inner: M) -> UrlDecoded<M> {
     UrlDecoded(inner)
 }
 /// The `UrlDecoded` mapper returned by [url_decoded()](fn.url_decoded.html)
 #[derive(Debug)]
-pub struct UrlDecoded<C>(C);
-impl<IN, C> Mapper<IN> for UrlDecoded<C>
+pub struct UrlDecoded<M>(M);
+impl<IN, M> Mapper<IN> for UrlDecoded<M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    C: Mapper<[(String, String)]>,
+    M: Mapper<[(String, String)]>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &IN) -> C::Out {
+    fn map(&mut self, input: &IN) -> M::Out {
         let decoded: Vec<(String, String)> = url::form_urlencoded::parse(input.as_ref())
             .into_owned()
             .collect();
@@ -263,20 +263,20 @@ where
 ///
 /// If the input can't be decoded a serde_json::Value::Null is passed to the next
 /// mapper.
-pub fn json_decoded<C>(inner: C) -> JsonDecoded<C> {
+pub fn json_decoded<M>(inner: M) -> JsonDecoded<M> {
     JsonDecoded(inner)
 }
 /// The `JsonDecoded` mapper returned by [json_decoded()](fn.json_decoded.html)
 #[derive(Debug)]
-pub struct JsonDecoded<C>(C);
-impl<IN, C> Mapper<IN> for JsonDecoded<C>
+pub struct JsonDecoded<M>(M);
+impl<IN, M> Mapper<IN> for JsonDecoded<M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    C: Mapper<serde_json::Value>,
+    M: Mapper<serde_json::Value>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &IN) -> C::Out {
+    fn map(&mut self, input: &IN) -> M::Out {
         let json_value: serde_json::Value =
             serde_json::from_slice(input.as_ref()).unwrap_or(serde_json::Value::Null);
         self.0.map(&json_value)
@@ -284,23 +284,23 @@ where
 }
 
 /// lowercase the input and pass it to the next mapper.
-pub fn lowercase<C>(inner: C) -> Lowercase<C>
+pub fn lowercase<M>(inner: M) -> Lowercase<M>
 where
-    C: Mapper<[u8]>,
+    M: Mapper<[u8]>,
 {
     Lowercase(inner)
 }
 /// The `Lowercase` mapper returned by [lowercase()](fn.lowercase.html)
 #[derive(Debug)]
-pub struct Lowercase<C>(C);
-impl<IN, C> Mapper<IN> for Lowercase<C>
+pub struct Lowercase<M>(M);
+impl<IN, M> Mapper<IN> for Lowercase<M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    C: Mapper<[u8]>,
+    M: Mapper<[u8]>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &IN) -> C::Out {
+    fn map(&mut self, input: &IN) -> M::Out {
         use bstr::ByteSlice;
         self.0.map(&input.as_ref().to_lowercase())
     }

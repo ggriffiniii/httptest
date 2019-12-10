@@ -3,74 +3,74 @@
 use super::Mapper;
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
-pub fn method<C>(inner: C) -> Method<C> {
+pub fn method<M>(inner: M) -> Method<M> {
     Method(inner)
 }
 /// The `Method` mapper returned by [method()](fn.method.html)
 #[derive(Debug)]
-pub struct Method<C>(C);
-impl<C, B> Mapper<hyper::Request<B>> for Method<C>
+pub struct Method<M>(M);
+impl<M, B> Mapper<hyper::Request<B>> for Method<M>
 where
-    C: Mapper<str>,
+    M: Mapper<str>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
         self.0.map(input.method().as_str())
     }
 }
 
 /// Extract the path from the HTTP request and pass it to the next mapper.
-pub fn path<C>(inner: C) -> Path<C> {
+pub fn path<M>(inner: M) -> Path<M> {
     Path(inner)
 }
 /// The `Path` mapper returned by [path()](fn.path.html)
 #[derive(Debug)]
-pub struct Path<C>(C);
-impl<C, B> Mapper<hyper::Request<B>> for Path<C>
+pub struct Path<M>(M);
+impl<M, B> Mapper<hyper::Request<B>> for Path<M>
 where
-    C: Mapper<str>,
+    M: Mapper<str>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
         self.0.map(input.uri().path())
     }
 }
 
 /// Extract the query from the HTTP request and pass it to the next mapper.
-pub fn query<C>(inner: C) -> Query<C> {
+pub fn query<M>(inner: M) -> Query<M> {
     Query(inner)
 }
 /// The `Query` mapper returned by [query()](fn.query.html)
 #[derive(Debug)]
-pub struct Query<C>(C);
-impl<C, B> Mapper<hyper::Request<B>> for Query<C>
+pub struct Query<M>(M);
+impl<M, B> Mapper<hyper::Request<B>> for Query<M>
 where
-    C: Mapper<str>,
+    M: Mapper<str>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
         self.0.map(input.uri().query().unwrap_or(""))
     }
 }
 
 /// Extract the headers from the HTTP request and pass the sequence to the next
 /// mapper.
-pub fn headers<C>(inner: C) -> Headers<C> {
+pub fn headers<M>(inner: M) -> Headers<M> {
     Headers(inner)
 }
 /// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
-pub struct Headers<C>(C);
-impl<C, B> Mapper<hyper::Request<B>> for Headers<C>
+pub struct Headers<M>(M);
+impl<M, B> Mapper<hyper::Request<B>> for Headers<M>
 where
-    C: Mapper<[(Vec<u8>, Vec<u8>)]>,
+    M: Mapper<[(Vec<u8>, Vec<u8>)]>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
         let headers: Vec<(Vec<u8>, Vec<u8>)> = input
             .headers()
             .iter()
@@ -81,20 +81,20 @@ where
 }
 
 /// Extract the body from the HTTP request and pass it to the next mapper.
-pub fn body<C>(inner: C) -> Body<C> {
+pub fn body<M>(inner: M) -> Body<M> {
     Body(inner)
 }
 /// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
-pub struct Body<C>(C);
-impl<C, B> Mapper<hyper::Request<B>> for Body<C>
+pub struct Body<M>(M);
+impl<M, B> Mapper<hyper::Request<B>> for Body<M>
 where
     B: ToOwned,
-    C: Mapper<B::Owned>,
+    M: Mapper<B::Owned>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
         self.0.map(&input.body().to_owned())
     }
 }

@@ -3,38 +3,38 @@
 use super::Mapper;
 
 /// Extract the status code from the HTTP response and pass it to the next mapper.
-pub fn status_code<C>(inner: C) -> StatusCode<C> {
+pub fn status_code<M>(inner: M) -> StatusCode<M> {
     StatusCode(inner)
 }
 /// The `StatusCode` mapper returned by [status_code()](fn.status_code.html)
 #[derive(Debug)]
-pub struct StatusCode<C>(C);
-impl<C, B> Mapper<hyper::Response<B>> for StatusCode<C>
+pub struct StatusCode<M>(M);
+impl<M, B> Mapper<hyper::Response<B>> for StatusCode<M>
 where
-    C: Mapper<u16>,
+    M: Mapper<u16>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Response<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Response<B>) -> M::Out {
         self.0.map(&input.status().as_u16())
     }
 }
 
 /// Extract the headers from the HTTP response and pass the sequence to the next
 /// mapper.
-pub fn headers<C>(inner: C) -> Headers<C> {
+pub fn headers<M>(inner: M) -> Headers<M> {
     Headers(inner)
 }
 /// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
-pub struct Headers<C>(C);
-impl<C, B> Mapper<hyper::Response<B>> for Headers<C>
+pub struct Headers<M>(M);
+impl<M, B> Mapper<hyper::Response<B>> for Headers<M>
 where
-    C: Mapper<[(Vec<u8>, Vec<u8>)]>,
+    M: Mapper<[(Vec<u8>, Vec<u8>)]>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Response<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Response<B>) -> M::Out {
         let headers: Vec<(Vec<u8>, Vec<u8>)> = input
             .headers()
             .iter()
@@ -45,19 +45,19 @@ where
 }
 
 /// Extract the body from the HTTP response and pass it to the next mapper.
-pub fn body<C>(inner: C) -> Body<C> {
+pub fn body<M>(inner: M) -> Body<M> {
     Body(inner)
 }
 /// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
-pub struct Body<C>(C);
-impl<C, B> Mapper<hyper::Response<B>> for Body<C>
+pub struct Body<M>(M);
+impl<M, B> Mapper<hyper::Response<B>> for Body<M>
 where
-    C: Mapper<B>,
+    M: Mapper<B>,
 {
-    type Out = C::Out;
+    type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Response<B>) -> C::Out {
+    fn map(&mut self, input: &hyper::Response<B>) -> M::Out {
         self.0.map(input.body())
     }
 }

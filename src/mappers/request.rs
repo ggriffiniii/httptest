@@ -88,12 +88,13 @@ pub fn body<C>(inner: C) -> Body<C> {
 pub struct Body<C>(C);
 impl<C, B> Mapper<hyper::Request<B>> for Body<C>
 where
-    C: Mapper<B>,
+    B: ToOwned,
+    C: Mapper<B::Owned>,
 {
     type Out = C::Out;
 
     fn map(&mut self, input: &hyper::Request<B>) -> C::Out {
-        self.0.map(input.body())
+        self.0.map(&input.body().to_owned())
     }
 }
 

@@ -7,6 +7,7 @@ pub use crate::all_of;
 pub use crate::any_of;
 pub mod request;
 pub mod response;
+pub mod sequence;
 
 pub trait Mapper<IN>: Send + fmt::Debug
 where
@@ -40,7 +41,10 @@ pub fn any() -> Any {
 }
 #[derive(Debug)]
 pub struct Any;
-impl<IN> Mapper<IN> for Any {
+impl<IN> Mapper<IN> for Any
+where
+    IN: ?Sized,
+{
     type Out = bool;
 
     fn map(&mut self, _input: &IN) -> bool {
@@ -62,6 +66,23 @@ where
 
     fn map(&mut self, input: &IN) -> bool {
         self.0.borrow() == input
+    }
+}
+
+pub fn deref<C>(inner: C) -> Deref<C> {
+    Deref(inner)
+}
+#[derive(Debug)]
+pub struct Deref<C>(C);
+impl<C, IN> Mapper<IN> for Deref<C>
+where
+    C: Mapper<IN::Target>,
+    IN: std::ops::Deref,
+{
+    type Out = C::Out;
+
+    fn map(&mut self, input: &IN) -> C::Out {
+        self.0.map(input.deref())
     }
 }
 
@@ -173,15 +194,15 @@ where
     }
 }
 
-pub fn uri_decoded<C>(inner: C) -> UriDecoded<C>
+pub fn url_decoded<C>(inner: C) -> UrlDecoded<C>
 where
     C: Mapper<[(String, String)]>,
 {
-    UriDecoded(inner)
+    UrlDecoded(inner)
 }
 #[derive(Debug)]
-pub struct UriDecoded<C>(C);
-impl<IN, C> Mapper<IN> for UriDecoded<C>
+pub struct UrlDecoded<C>(C);
+impl<IN, C> Mapper<IN> for UrlDecoded<C>
 where
     IN: AsRef<[u8]> + ?Sized,
     C: Mapper<[(String, String)]>,
@@ -335,12 +356,12 @@ mod tests {
     }
 
     #[test]
-    fn test_uri_decoded() {
+    fn test_url_decoded() {
         let expected = vec![
             ("key 1".to_owned(), "value 1".to_owned()),
             ("key2".to_owned(), "".to_owned()),
         ];
-        let mut c = request::query(uri_decoded(eq(expected)));
+        let mut c = request::query(url_decoded(eq(expected)));
         let req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
             .unwrap();

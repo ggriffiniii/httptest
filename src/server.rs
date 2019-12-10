@@ -109,6 +109,11 @@ impl Server {
     /// all expectations leaving the server running in a clean state.
     pub fn verify_and_clear(&mut self) {
         let mut state = self.state.lock();
+        if std::thread::panicking() {
+            // If the test is already panicking don't double panic on drop.
+            state.expected.clear();
+            return;
+        }
         for expectation in state.expected.iter() {
             let is_valid_cardinality = match &expectation.cardinality {
                 Times::AnyNumber => true,

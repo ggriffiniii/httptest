@@ -46,6 +46,27 @@ impl Responder for JsonEncoded {
     }
 }
 
+pub fn url_encoded<T>(data: T) -> impl Responder
+where
+    T: serde::Serialize,
+{
+    UrlEncoded(serde_urlencoded::to_string(&data).unwrap())
+}
+#[derive(Debug)]
+pub struct UrlEncoded(String);
+impl Responder for UrlEncoded {
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
+        async fn _respond(body: String) -> http::Response<hyper::Body> {
+            hyper::Response::builder()
+                .status(200)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(body.into())
+                .unwrap()
+        }
+        Box::pin(_respond(self.0.clone()))
+    }
+}
+
 impl<B> Responder for hyper::Response<B>
 where
     B: Clone + Into<hyper::Body> + Send + fmt::Debug,

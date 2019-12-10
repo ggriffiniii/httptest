@@ -84,6 +84,7 @@ async fn test_expectation_cardinality_exceeded() {
 
 #[tokio::test]
 async fn test_json() {
+    use bstr::B;
     let _ = pretty_env_logger::try_init();
 
     let my_data = serde_json::json!({
@@ -103,11 +104,16 @@ async fn test_json() {
         .respond_with(json_encoded(my_data.clone())),
     );
 
-    // Issue the GET /foo to the server and verify it returns a 200.
+    // Issue the GET /foo to the server and verify it returns a 200 with a json
+    // body matching my_data.
     let client = hyper::Client::new();
     let resp = read_response_body(client.get(server.url("/foo")).await.unwrap()).await;
     assert!(all_of![
         response::status_code(eq(200)),
+        response::headers(sequence::contains((
+            deref(eq(B("content-type"))),
+            deref(eq(B("application/json"))),
+        ))),
         response::body(json_decoded(eq(my_data))),
     ]
     .matches(&resp));
@@ -139,4 +145,46 @@ async fn test_cycle() {
     assert!(response::status_code(eq(200)).matches(&resp));
     let resp = read_response_body(client.get(server.url("/foo")).await.unwrap()).await;
     assert!(response::status_code(eq(404)).matches(&resp));
+}
+
+#[tokio::test]
+async fn test_url_encoded() {
+    use bstr::B;
+    let _ = pretty_env_logger::try_init();
+
+    // Setup a server to expect a single GET /foo request and respond with a
+    // json response.
+    let my_data = vec![("key", "value")];
+    let server = httptest::Server::run();
+    server.expect(
+        Expectation::matching(all_of![
+            request::method(eq("GET")),
+            request::path(eq("/foo")),
+            request::query(url_decoded(sequence::contains((
+                deref(eq("key")),
+                deref(eq("value")),
+            )))),
+        ])
+        .times(Times::Exactly(1))
+        .respond_with(url_encoded(my_data.clone())),
+    );
+
+    // Issue the GET /foo?key=value to the server and verify it returns a 200 with an
+    // application/x-www-form-urlencoded body of key=value.
+    let client = hyper::Client::new();
+    let resp = read_response_body(client.get(server.url("/foo?key=value")).await.unwrap()).await;
+    assert!(all_of![
+        response::status_code(eq(200)),
+        response::headers(sequence::contains((
+            deref(eq(B("content-type"))),
+            deref(eq(B("application/x-www-form-urlencoded"))),
+        ))),
+        response::body(url_decoded(sequence::contains((
+            deref(eq("key")),
+            deref(eq("value"))
+        )))),
+    ]
+    .matches(&resp));
+
+    // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
 }

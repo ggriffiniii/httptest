@@ -1,9 +1,12 @@
 //! # httptest
 //!
 //! Provide convenient mechanism for testing http clients against a locally
-//! running http server. This library consists of a number of components that
-//! allow starting an http server and configuring it to expect to receive certain
-//! requests and respond appropriately.
+//! running http server. The typical usage is as follows:
+//!
+//! * Start a server
+//! * Configure the server by adding expectations
+//! * Test your http client by making requests to the server
+//! * On Drop the server verifies all expectations were met.
 //!
 //! ## Example Test
 //!

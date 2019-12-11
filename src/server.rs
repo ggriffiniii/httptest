@@ -143,9 +143,8 @@ impl Server {
             }
         }
         state.expected.clear();
-        if !state.unexpected_requests.is_empty() {
-            // TODO: format and print the requests.
-            panic!("unexpected requests received");
+        if state.unexpected_requests != 0 {
+            panic!("{} unexpected requests received", state.unexpected_requests);
         }
     }
 }
@@ -163,7 +162,9 @@ impl Drop for Server {
 async fn on_req(state: ServerState, req: FullRequest) -> hyper::Response<hyper::Body> {
     let response_future = {
         let mut state = state.lock();
-        let mut iter = state.expected.iter_mut();
+        // Iterate over expectations in reverse order. Expectations are
+        // evaluated most recently added first.
+        let mut iter = state.expected.iter_mut().rev();
         let response_future = loop {
             let expectation = match iter.next() {
                 None => break None,
@@ -194,8 +195,8 @@ async fn on_req(state: ServerState, req: FullRequest) -> hyper::Response<hyper::
             }
         };
         if response_future.is_none() {
-            // TODO: provide real request id.
-            state.unexpected_requests.push(RequestID(1));
+            log::debug!("no matcher found for request: {:?}", req);
+            state.unexpected_requests += 1;
         }
         response_future
     };
@@ -204,7 +205,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> hyper::Response<hyper::
     } else {
         hyper::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-            .body(hyper::Body::empty())
+            .body(hyper::Body::from("No matcher found"))
             .unwrap()
     }
 }
@@ -268,9 +269,6 @@ impl ExpectationBuilder {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct RequestID(u64);
-
 #[derive(Clone)]
 struct ServerState(Arc<Mutex<ServerStateInner>>);
 
@@ -292,7 +290,7 @@ impl Default for ServerState {
 }
 
 struct ServerStateInner {
-    unexpected_requests: Vec<RequestID>,
+    unexpected_requests: usize,
     expected: Vec<Expectation>,
 }
 

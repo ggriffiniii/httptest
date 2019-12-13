@@ -13,7 +13,7 @@ pub use crate::cycle;
 /// Respond with an HTTP response.
 pub trait Responder: Send + fmt::Debug {
     /// Return a future that outputs an HTTP response.
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send>>;
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>>;
 }
 
 /// respond with the provided status code.
@@ -24,9 +24,9 @@ pub fn status_code(code: u16) -> impl Responder {
 #[derive(Debug)]
 pub struct StatusCode(u16);
 impl Responder for StatusCode {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send>> {
-        async fn _respond(status_code: u16) -> hyper::Response<hyper::Body> {
-            hyper::Response::builder()
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
+        async fn _respond(status_code: u16) -> http::Response<hyper::Body> {
+            http::Response::builder()
                 .status(status_code)
                 .body(hyper::Body::empty())
                 .unwrap()
@@ -49,9 +49,9 @@ where
 #[derive(Debug)]
 pub struct JsonEncoded(String);
 impl Responder for JsonEncoded {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send>> {
-        async fn _respond(body: String) -> hyper::Response<hyper::Body> {
-            hyper::Response::builder()
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
+        async fn _respond(body: String) -> http::Response<hyper::Body> {
+            http::Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
                 .body(body.into())
@@ -75,9 +75,9 @@ where
 #[derive(Debug)]
 pub struct UrlEncoded(String);
 impl Responder for UrlEncoded {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send>> {
-        async fn _respond(body: String) -> hyper::Response<hyper::Body> {
-            hyper::Response::builder()
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
+        async fn _respond(body: String) -> http::Response<hyper::Body> {
+            http::Response::builder()
                 .status(200)
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(body.into())
@@ -87,15 +87,15 @@ impl Responder for UrlEncoded {
     }
 }
 
-impl<B> Responder for hyper::Response<B>
+impl<B> Responder for http::Response<B>
 where
     B: Clone + Into<hyper::Body> + Send + fmt::Debug,
 {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send>> {
-        async fn _respond(resp: hyper::Response<hyper::Body>) -> hyper::Response<hyper::Body> {
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
+        async fn _respond(resp: http::Response<hyper::Body>) -> http::Response<hyper::Body> {
             resp
         }
-        let mut builder = hyper::Response::builder();
+        let mut builder = http::Response::builder();
         builder = builder
             .status(self.status().clone())
             .version(self.version().clone());
@@ -120,7 +120,7 @@ pub struct Cycle {
     responders: Vec<Box<dyn Responder>>,
 }
 impl Responder for Cycle {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send>> {
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
         let response = self.responders[self.idx].respond();
         self.idx = (self.idx + 1) % self.responders.len();
         response

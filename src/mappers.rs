@@ -432,7 +432,7 @@ mod tests {
             ("key2".to_owned(), "".to_owned()),
         ];
         let mut c = request::query(url_decoded(eq(expected)));
-        let req = hyper::Request::get("https://example.com/path?key%201=value%201&key2")
+        let req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
             .unwrap();
 

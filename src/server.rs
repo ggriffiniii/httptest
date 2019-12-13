@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 // type alias for a request that has read a complete body into memory.
-type FullRequest = hyper::Request<hyper::body::Bytes>;
+type FullRequest = http::Request<hyper::body::Bytes>;
 
 /// The Server
 pub struct Server {
@@ -38,13 +38,13 @@ impl Server {
                     let state = state.clone();
                     Ok::<_, Error>(service_fn({
                         let state = state.clone();
-                        move |req: hyper::Request<hyper::Body>| {
+                        move |req: http::Request<hyper::Body>| {
                             let state = state.clone();
                             async move {
                                 // read the full body into memory prior to handing it to mappers.
                                 let (head, body) = req.into_parts();
                                 let full_body = hyper::body::to_bytes(body).await?;
-                                let req = hyper::Request::from_parts(head, full_body);
+                                let req = http::Request::from_parts(head, full_body);
                                 log::debug!("Received Request: {:?}", req);
                                 let resp = on_req(state, req).await;
                                 log::debug!("Sending Response: {:?}", resp);
@@ -159,7 +159,7 @@ impl Drop for Server {
     }
 }
 
-async fn on_req(state: ServerState, req: FullRequest) -> hyper::Response<hyper::Body> {
+async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::Body> {
     let response_future = {
         let mut state = state.lock();
         // Iterate over expectations in reverse order. Expectations are
@@ -203,7 +203,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> hyper::Response<hyper::
     if let Some(f) = response_future {
         f.await
     } else {
-        hyper::Response::builder()
+        http::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(hyper::Body::from("No matcher found"))
             .unwrap()
@@ -307,13 +307,13 @@ fn cardinality_error(
     matcher: &dyn Matcher<FullRequest>,
     cardinality: &Times,
     hit_count: usize,
-) -> Pin<Box<dyn Future<Output = hyper::Response<hyper::Body>> + Send + 'static>> {
+) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
     let body = hyper::Body::from(format!(
         "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
         matcher, hit_count, cardinality,
     ));
     Box::pin(async move {
-        hyper::Response::builder()
+        http::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .body(body)
             .unwrap()

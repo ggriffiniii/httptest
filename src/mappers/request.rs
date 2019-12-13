@@ -9,13 +9,13 @@ pub fn method<M>(inner: M) -> Method<M> {
 /// The `Method` mapper returned by [method()](fn.method.html)
 #[derive(Debug)]
 pub struct Method<M>(M);
-impl<M, B> Mapper<hyper::Request<B>> for Method<M>
+impl<M, B> Mapper<http::Request<B>> for Method<M>
 where
     M: Mapper<str>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
+    fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(input.method().as_str())
     }
 }
@@ -27,13 +27,13 @@ pub fn path<M>(inner: M) -> Path<M> {
 /// The `Path` mapper returned by [path()](fn.path.html)
 #[derive(Debug)]
 pub struct Path<M>(M);
-impl<M, B> Mapper<hyper::Request<B>> for Path<M>
+impl<M, B> Mapper<http::Request<B>> for Path<M>
 where
     M: Mapper<str>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
+    fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(input.uri().path())
     }
 }
@@ -45,13 +45,13 @@ pub fn query<M>(inner: M) -> Query<M> {
 /// The `Query` mapper returned by [query()](fn.query.html)
 #[derive(Debug)]
 pub struct Query<M>(M);
-impl<M, B> Mapper<hyper::Request<B>> for Query<M>
+impl<M, B> Mapper<http::Request<B>> for Query<M>
 where
     M: Mapper<str>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
+    fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(input.uri().query().unwrap_or(""))
     }
 }
@@ -64,13 +64,13 @@ pub fn headers<M>(inner: M) -> Headers<M> {
 /// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
 pub struct Headers<M>(M);
-impl<M, B> Mapper<hyper::Request<B>> for Headers<M>
+impl<M, B> Mapper<http::Request<B>> for Headers<M>
 where
     M: Mapper<[(Vec<u8>, Vec<u8>)]>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
+    fn map(&mut self, input: &http::Request<B>) -> M::Out {
         let headers: Vec<(Vec<u8>, Vec<u8>)> = input
             .headers()
             .iter()
@@ -87,14 +87,14 @@ pub fn body<M>(inner: M) -> Body<M> {
 /// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
 pub struct Body<M>(M);
-impl<M, B> Mapper<hyper::Request<B>> for Body<M>
+impl<M, B> Mapper<http::Request<B>> for Body<M>
 where
     B: ToOwned,
     M: Mapper<B::Owned>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Request<B>) -> M::Out {
+    fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(&input.body().to_owned())
     }
 }
@@ -106,12 +106,12 @@ mod tests {
 
     #[test]
     fn test_path() {
-        let req = hyper::Request::get("https://example.com/foo")
+        let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
         assert!(path(eq("/foo")).map(&req));
 
-        let req = hyper::Request::get("https://example.com/foobar")
+        let req = http::Request::get("https://example.com/foobar")
             .body("")
             .unwrap();
         assert!(path(eq("/foobar")).map(&req))
@@ -119,11 +119,11 @@ mod tests {
 
     #[test]
     fn test_query() {
-        let req = hyper::Request::get("https://example.com/path?foo=bar&baz=bat")
+        let req = http::Request::get("https://example.com/path?foo=bar&baz=bat")
             .body("")
             .unwrap();
         assert!(query(eq("foo=bar&baz=bat")).map(&req));
-        let req = hyper::Request::get("https://example.com/path?search=1")
+        let req = http::Request::get("https://example.com/path?search=1")
             .body("")
             .unwrap();
         assert!(query(eq("search=1")).map(&req));
@@ -131,11 +131,11 @@ mod tests {
 
     #[test]
     fn test_method() {
-        let req = hyper::Request::get("https://example.com/foo")
+        let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
         assert!(method(eq("GET")).map(&req));
-        let req = hyper::Request::post("https://example.com/foobar")
+        let req = http::Request::post("https://example.com/foobar")
             .body("")
             .unwrap();
         assert!(method(eq("POST")).map(&req));
@@ -147,7 +147,7 @@ mod tests {
             (Vec::from("host"), Vec::from("example.com")),
             (Vec::from("content-length"), Vec::from("101")),
         ];
-        let mut req = hyper::Request::get("https://example.com/path?key%201=value%201&key2")
+        let mut req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
             .unwrap();
         req.headers_mut().extend(vec![
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_body() {
-        let req = hyper::Request::get("https://example.com/foo")
+        let req = http::Request::get("https://example.com/foo")
             .body("my request body")
             .unwrap();
         assert!(body(eq("my request body")).map(&req));

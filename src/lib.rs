@@ -91,7 +91,7 @@
 //! Matcher trait simply provides a `matches` method.
 //!
 //! A request matcher is any `Matcher` that takes accepts a
-//! `hyper::Request<hyper::body::Bytes>` as input.
+//! `http::Request<hyper::body::Bytes>` as input.
 //!
 //! With that understanding we can discuss how to easily define a request
 //! matcher. There are a variety of pre-defined mappers within the `mappers`
@@ -126,7 +126,7 @@
 //! ];
 //!
 //! # // Allow type inference to determine the request type.
-//! # m.map(&hyper::Request::get("/").body("").unwrap());
+//! # m.map(&http::Request::get("/").body("").unwrap());
 //! ```
 //!
 //! ## Times
@@ -145,7 +145,7 @@
 //! Responders define how the server will respond to a matched request. There
 //! are a number of implemented responders within the responders module. In
 //! addition to the predefined responders you can provide any
-//! `hyper::Response` with a body that can be cloned or implement your own
+//! `http::Response` with a body that can be cloned or implement your own
 //! Responder.
 //!
 //! ## Responder example

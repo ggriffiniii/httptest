@@ -11,7 +11,8 @@ homepage = "https://github.com/ggriffiniii/httptest"
 readme = "README.md"
 keywords = ["http", "test", "testing", "mock", "fake"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.release]
+no-dev-version = true
 
 [dependencies]
 hyper = "0.13"

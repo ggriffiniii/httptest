@@ -9,13 +9,13 @@ pub fn status_code<M>(inner: M) -> StatusCode<M> {
 /// The `StatusCode` mapper returned by [status_code()](fn.status_code.html)
 #[derive(Debug)]
 pub struct StatusCode<M>(M);
-impl<M, B> Mapper<hyper::Response<B>> for StatusCode<M>
+impl<M, B> Mapper<http::Response<B>> for StatusCode<M>
 where
     M: Mapper<u16>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Response<B>) -> M::Out {
+    fn map(&mut self, input: &http::Response<B>) -> M::Out {
         self.0.map(&input.status().as_u16())
     }
 }
@@ -28,13 +28,13 @@ pub fn headers<M>(inner: M) -> Headers<M> {
 /// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
 pub struct Headers<M>(M);
-impl<M, B> Mapper<hyper::Response<B>> for Headers<M>
+impl<M, B> Mapper<http::Response<B>> for Headers<M>
 where
     M: Mapper<[(Vec<u8>, Vec<u8>)]>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Response<B>) -> M::Out {
+    fn map(&mut self, input: &http::Response<B>) -> M::Out {
         let headers: Vec<(Vec<u8>, Vec<u8>)> = input
             .headers()
             .iter()
@@ -51,13 +51,13 @@ pub fn body<M>(inner: M) -> Body<M> {
 /// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
 pub struct Body<M>(M);
-impl<M, B> Mapper<hyper::Response<B>> for Body<M>
+impl<M, B> Mapper<http::Response<B>> for Body<M>
 where
     M: Mapper<B>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &hyper::Response<B>) -> M::Out {
+    fn map(&mut self, input: &http::Response<B>) -> M::Out {
         self.0.map(input.body())
     }
 }
@@ -69,13 +69,13 @@ mod tests {
 
     #[test]
     fn test_status_code() {
-        let resp = hyper::Response::builder()
+        let resp = http::Response::builder()
             .status(hyper::StatusCode::NOT_FOUND)
             .body("")
             .unwrap();
         assert!(status_code(eq(404)).map(&resp));
 
-        let resp = hyper::Response::builder()
+        let resp = http::Response::builder()
             .status(hyper::StatusCode::OK)
             .body("")
             .unwrap();
@@ -88,7 +88,7 @@ mod tests {
             (Vec::from("host"), Vec::from("example.com")),
             (Vec::from("content-length"), Vec::from("101")),
         ];
-        let resp = hyper::Response::builder()
+        let resp = http::Response::builder()
             .header("host", "example.com")
             .header("content-length", 101)
             .body("")
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_body() {
-        let resp = hyper::Response::builder().body("my request body").unwrap();
+        let resp = http::Response::builder().body("my request body").unwrap();
         assert!(body(eq("my request body")).map(&resp));
     }
 }

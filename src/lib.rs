@@ -94,12 +94,12 @@
 //! `http::Request<hyper::body::Bytes>` as input.
 //!
 //! With that understanding we can discuss how to easily define a request
-//! matcher. There are a variety of pre-defined mappers within the `mappers`
-//! module. These mappers can be composed together to define the values you want
-//! to match. The mappers fall into two categories. Some of the mappers extract a
-//! value from the input type and pass it to another mapper, other mappers accept
-//! an input type and return a bool. These primitives provide an easy and
-//! flexible way to define custom logic.
+//! matcher. There are a variety of pre-defined mappers within the
+//! [mappers](mappers/index.html) module. These mappers can be composed
+//! together to define the values you want to match. The mappers fall into two
+//! categories. Some of the mappers extract a value from the input type and pass
+//! it to another mapper, other mappers accept an input type and return a bool.
+//! These primitives provide an easy and flexible way to define custom logic.
 //!
 //! ### Matcher examples
 //!

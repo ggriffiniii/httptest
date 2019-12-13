@@ -3,6 +3,13 @@ name = "httptest"
 version = "0.1.0"
 authors = ["Glenn Griffin <ggriffiniii@gmail.com>"]
 edition = "2018"
+description = "HTTP testing facilities including a mock server"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/httptest"
+repository = "https://github.com/ggriffiniii/httptest"
+homepage = "https://github.com/ggriffiniii/httptest"
+readme = "README.md"
+keywords = ["http", "test", "testing", "mock", "fake"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

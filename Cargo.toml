@@ -1,2 +1,2 @@
 [workspace]
-members = ["httptest"]
+members = ["httptest", "httptest_server", "httptest_core"]

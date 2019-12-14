@@ -15,10 +15,8 @@ keywords = ["http", "test", "testing", "mock", "fake"]
 no-dev-version = true
 
 [dependencies]
-hyper = "0.13"
-futures = "0.3"
-tokio = { version = "0.2", features = ["macros"] }
-crossbeam-channel = "0.4.0"
+httptest_core = { version = "0.1", path = "../httptest_core" }
+httptest_server = { version = "0.1", path = "../httptest_server" }
 http = "0.2"
 log = "0.4.8"
 bstr = "0.2.8"
@@ -30,3 +28,5 @@ serde_urlencoded = "0.6.1"
 
 [dev-dependencies]
 pretty_env_logger = "0.3.1"
+hyper = "0.13"
+tokio = { version = "0.2", features = ["macros"] }

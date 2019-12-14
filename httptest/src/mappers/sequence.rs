@@ -1,6 +1,6 @@
 //! Mappers that handle sequences of items.
 
-use super::Mapper;
+use httptest_core::Mapper;
 
 /// true if the provided mapper returns true for any of the elements in the
 /// sequence.
@@ -23,18 +23,6 @@ where
             }
         }
         false
-    }
-}
-
-impl<K, V, KMapper, VMapper> Mapper<(K, V)> for (KMapper, VMapper)
-where
-    KMapper: Mapper<K, Out = bool>,
-    VMapper: Mapper<V, Out = bool>,
-{
-    type Out = bool;
-
-    fn map(&mut self, input: &(K, V)) -> bool {
-        self.0.map(&input.0) && self.1.map(&input.1)
     }
 }
 

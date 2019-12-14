@@ -1,6 +1,6 @@
 //! Mappers that extract information from HTTP requests.
 
-use super::Mapper;
+use httptest_core::Mapper;
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
 pub fn method<M>(inner: M) -> Method<M> {
@@ -152,12 +152,12 @@ mod tests {
             .unwrap();
         req.headers_mut().extend(vec![
             (
-                hyper::header::HOST,
-                hyper::header::HeaderValue::from_static("example.com"),
+                http::header::HOST,
+                http::header::HeaderValue::from_static("example.com"),
             ),
             (
-                hyper::header::CONTENT_LENGTH,
-                hyper::header::HeaderValue::from_static("101"),
+                http::header::CONTENT_LENGTH,
+                http::header::HeaderValue::from_static("101"),
             ),
         ]);
 

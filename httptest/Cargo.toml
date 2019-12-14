@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/httptest"
 repository = "https://github.com/ggriffiniii/httptest"
 homepage = "https://github.com/ggriffiniii/httptest"
-readme = "README.md"
+readme = "../README.md"
 keywords = ["http", "test", "testing", "mock", "fake"]
 
 [package.metadata.release]

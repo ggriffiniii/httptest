@@ -115,6 +115,18 @@ where
     }
 }
 
+/// A String is an implicit Eq mapper.
+impl<IN> Mapper<IN> for String
+where
+    IN: AsRef<[u8]> + ?Sized,
+{
+    type Out = bool;
+
+    fn map(&mut self, input: &IN) -> bool {
+        self.as_bytes() == input.as_ref()
+    }
+}
+
 /// A &[u8] is an implicit Eq mapper.
 impl<IN> Mapper<IN> for &[u8]
 where

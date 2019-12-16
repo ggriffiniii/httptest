@@ -17,12 +17,9 @@ async fn test_server() {
     // Setup a server to expect a single GET /foo request.
     let server = httptest::Server::run();
     server.expect(
-        Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
-        ])
-        .times(Times::Exactly(1))
-        .respond_with(status_code(200)),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .times(Times::Exactly(1))
+            .respond_with(status_code(200)),
     );
 
     // Issue the GET /foo to the server and verify it returns a 200.
@@ -41,12 +38,9 @@ async fn test_expectation_cardinality_not_reached() {
     // Setup a server to expect a single GET /foo request.
     let server = httptest::Server::run();
     server.expect(
-        Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
-        ])
-        .times(Times::Exactly(1))
-        .respond_with(status_code(200)),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .times(Times::Exactly(1))
+            .respond_with(status_code(200)),
     );
 
     // Don't send any requests. Should panic.
@@ -60,17 +54,14 @@ async fn test_expectation_cardinality_exceeded() {
     // Setup a server to expect a single GET /foo request.
     let server = httptest::Server::run();
     server.expect(
-        Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
-        ])
-        .times(Times::Exactly(1))
-        .respond_with(
-            http::Response::builder()
-                .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Vec::new())
-                .unwrap(),
-        ),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .times(Times::Exactly(1))
+            .respond_with(
+                http::Response::builder()
+                    .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Vec::new())
+                    .unwrap(),
+            ),
     );
 
     // Issue the GET /foo to the server and verify it returns a 200.
@@ -98,12 +89,9 @@ async fn test_json() {
     // json encoding of my_data.
     let server = httptest::Server::run();
     server.expect(
-        Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
-        ])
-        .times(Times::Exactly(1))
-        .respond_with(json_encoded(my_data.clone())),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .times(Times::Exactly(1))
+            .respond_with(json_encoded(my_data.clone())),
     );
 
     // Issue the GET /foo to the server and verify it returns a 200 with a json
@@ -112,10 +100,7 @@ async fn test_json() {
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert!(all_of![
         response::status_code(eq(200)),
-        response::headers(contains_entry((
-            eq("content-type"),
-            eq(&b"application/json"[..]),
-        ))),
+        response::headers(contains_entry(("content-type", "application/json"))),
         response::body(json_decoded(eq(my_data))),
     ]
     .matches(&resp));
@@ -129,12 +114,9 @@ async fn test_cycle() {
     // json encoding of my_data.
     let server = httptest::Server::run();
     server.expect(
-        Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
-        ])
-        .times(Times::Exactly(4))
-        .respond_with(cycle![status_code(200), status_code(404),]),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .times(Times::Exactly(4))
+            .respond_with(cycle![status_code(200), status_code(404),]),
     );
 
     // Issue multiple GET /foo to the server and verify it alternates between 200 and 404 codes.
@@ -159,9 +141,9 @@ async fn test_url_encoded() {
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo")),
-            request::query(url_decoded(contains_entry((eq("key"), eq("value"))))),
+            request::method("GET"),
+            request::path("/foo"),
+            request::query(url_decoded(contains_entry(("key", "value")))),
         ])
         .times(Times::Exactly(1))
         .respond_with(url_encoded(my_data.clone())),
@@ -174,10 +156,10 @@ async fn test_url_encoded() {
     assert!(all_of![
         response::status_code(eq(200)),
         response::headers(contains_entry((
-            eq("content-type"),
-            eq(&b"application/x-www-form-urlencoded"[..]),
+            "content-type",
+            "application/x-www-form-urlencoded",
         ))),
-        response::body(url_decoded(contains_entry((eq("key"), eq("value"))))),
+        response::body(url_decoded(contains_entry(("key", "value")))),
     ]
     .matches(&resp));
 
@@ -199,20 +181,17 @@ async fn test_readme() {
     // Configure the server to expect a single GET /foo request and respond
     // with a 200 status code.
     server.expect(
-        Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
-        ])
-        .times(Times::Exactly(1))
-        .respond_with(status_code(200)),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .times(Times::Exactly(1))
+            .respond_with(status_code(200)),
     );
     // Configure the server to also receive between 1 and 3 POST /bar requests
     // with a json body matching {'foo': 'bar'}, and respond with a json body
     // {'result': 'success'}
     server.expect(
         Expectation::matching(all_of![
-            request::method(eq("POST")),
-            request::path(eq("/bar")),
+            request::method("POST"),
+            request::path("/bar"),
             request::body(json_decoded(eq(json!({"foo": "bar"})))),
         ])
         .times(Times::Between(1..=3))

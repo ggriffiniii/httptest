@@ -92,17 +92,20 @@ impl Server {
     /// If the server is listening on port 1234.
     ///
     /// `server.url("/foo?q=1") == "http://localhost:1234/foo?q=1"`
-    pub fn url<T>(&self, path_and_query: T) -> hyper::Uri
-    where
-        http::uri::PathAndQuery: std::convert::TryFrom<T>,
-        <http::uri::PathAndQuery as std::convert::TryFrom<T>>::Error: Into<http::Error>,
-    {
+    pub fn url(&self, path_and_query: &str) -> http::Uri {
         hyper::Uri::builder()
             .scheme("http")
-            .authority(format!("{}", &self.addr).as_str())
+            .authority(self.addr.to_string().as_str())
             .path_and_query(path_and_query)
             .build()
             .unwrap()
+    }
+
+    /// Get a fully formed url to the servers address as a String.
+    ///
+    /// `server.url_str(foo)  == server.url(foo).to_string()`
+    pub fn url_str(&self, path_and_query: &str) -> String {
+        self.url(path_and_query).to_string()
     }
 
     /// Add a new expectation to the server.

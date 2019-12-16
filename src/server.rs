@@ -55,9 +55,8 @@ impl Server {
                 }
             }
         });
+        let (addr_tx, addr_rx) = crossbeam_channel::unbounded();
         // Then bind and serve...
-        let server = hyper::Server::bind(&bind_addr).serve(make_service);
-        let addr = server.local_addr();
         let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
         let join_handle = std::thread::spawn(move || {
             let mut runtime = tokio::runtime::Builder::new()
@@ -66,13 +65,15 @@ impl Server {
                 .build()
                 .unwrap();
             runtime.block_on(async move {
+                let server = hyper::Server::bind(&bind_addr).serve(make_service);
+                addr_tx.send(server.local_addr()).unwrap();
                 futures::select! {
                     _ = server.fuse() => {},
                     _ = shutdown_received.fuse() => {},
                 }
             });
         });
-
+        let addr = addr_rx.recv().unwrap();
         Server {
             trigger_shutdown: Some(trigger_shutdown),
             join_handle: Some(join_handle),

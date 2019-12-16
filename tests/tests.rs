@@ -251,3 +251,9 @@ async fn test_readme() {
     // on Drop the server will assert all expectations have been met and will
     // panic if not.
 }
+
+#[test]
+fn test_outside_of_tokio_context() {
+    let _ = pretty_env_logger::try_init();
+    let _server = httptest::Server::run();
+}

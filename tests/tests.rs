@@ -87,7 +87,6 @@ async fn test_expectation_cardinality_exceeded() {
 
 #[tokio::test]
 async fn test_json() {
-    use bstr::B;
     let _ = pretty_env_logger::try_init();
 
     let my_data = serde_json::json!({
@@ -114,8 +113,8 @@ async fn test_json() {
     assert!(all_of![
         response::status_code(eq(200)),
         response::headers(sequence::contains((
-            deref(eq(B("content-type"))),
-            deref(eq(B("application/json"))),
+            eq("content-type"),
+            eq(&b"application/json"[..]),
         ))),
         response::body(json_decoded(eq(my_data))),
     ]
@@ -152,7 +151,6 @@ async fn test_cycle() {
 
 #[tokio::test]
 async fn test_url_encoded() {
-    use bstr::B;
     let _ = pretty_env_logger::try_init();
 
     // Setup a server to expect a single GET /foo request and respond with a
@@ -163,10 +161,7 @@ async fn test_url_encoded() {
         Expectation::matching(all_of![
             request::method(eq("GET")),
             request::path(eq("/foo")),
-            request::query(url_decoded(sequence::contains((
-                deref(eq("key")),
-                deref(eq("value")),
-            )))),
+            request::query(url_decoded(sequence::contains((eq("key"), eq("value"),)))),
         ])
         .times(Times::Exactly(1))
         .respond_with(url_encoded(my_data.clone())),
@@ -179,13 +174,10 @@ async fn test_url_encoded() {
     assert!(all_of![
         response::status_code(eq(200)),
         response::headers(sequence::contains((
-            deref(eq(B("content-type"))),
-            deref(eq(B("application/x-www-form-urlencoded"))),
+            eq("content-type"),
+            eq(&b"application/x-www-form-urlencoded"[..]),
         ))),
-        response::body(url_decoded(sequence::contains((
-            deref(eq("key")),
-            deref(eq("value"))
-        )))),
+        response::body(url_decoded(sequence::contains((eq("key"), eq("value"))))),
     ]
     .matches(&resp));
 

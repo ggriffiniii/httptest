@@ -1,6 +1,7 @@
 //! Mappers that extract information from HTTP responses.
 
 use super::Mapper;
+use crate::mappers::sequence::KV;
 
 /// Extract the status code from the HTTP response and pass it to the next mapper.
 pub fn status_code<M>(inner: M) -> StatusCode<M> {
@@ -30,15 +31,18 @@ pub fn headers<M>(inner: M) -> Headers<M> {
 pub struct Headers<M>(M);
 impl<M, B> Mapper<http::Response<B>> for Headers<M>
 where
-    M: Mapper<[(Vec<u8>, Vec<u8>)]>,
+    M: Mapper<[KV<str, [u8]>]>,
 {
     type Out = M::Out;
 
     fn map(&mut self, input: &http::Response<B>) -> M::Out {
-        let headers: Vec<(Vec<u8>, Vec<u8>)> = input
+        let headers: Vec<_> = input
             .headers()
             .iter()
-            .map(|(k, v)| (k.as_str().into(), v.as_bytes().into()))
+            .map(|(k, v)| KV {
+                k: k.as_str().to_owned(),
+                v: v.as_bytes().to_owned(),
+            })
             .collect();
         self.0.map(&headers)
     }
@@ -84,9 +88,15 @@ mod tests {
 
     #[test]
     fn test_headers() {
-        let expected = vec![
-            (Vec::from("host"), Vec::from("example.com")),
-            (Vec::from("content-length"), Vec::from("101")),
+        let expected: Vec<KV<str, [u8]>> = vec![
+            KV {
+                k: "host".to_owned(),
+                v: Vec::from("example.com"),
+            },
+            KV {
+                k: "content-length".to_owned(),
+                v: Vec::from("101"),
+            },
         ];
         let resp = http::Response::builder()
             .header("host", "example.com")

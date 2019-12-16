@@ -1,6 +1,7 @@
 //! Mappers that extract information from HTTP requests.
 
 use super::Mapper;
+use crate::mappers::sequence::KV;
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
 pub fn method<M>(inner: M) -> Method<M> {
@@ -66,15 +67,18 @@ pub fn headers<M>(inner: M) -> Headers<M> {
 pub struct Headers<M>(M);
 impl<M, B> Mapper<http::Request<B>> for Headers<M>
 where
-    M: Mapper<[(Vec<u8>, Vec<u8>)]>,
+    M: Mapper<[KV<str, [u8]>]>,
 {
     type Out = M::Out;
 
     fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        let headers: Vec<(Vec<u8>, Vec<u8>)> = input
+        let headers: Vec<KV<str, [u8]>> = input
             .headers()
             .iter()
-            .map(|(k, v)| (k.as_str().into(), v.as_bytes().into()))
+            .map(|(k, v)| KV {
+                k: k.as_str().to_owned(),
+                v: v.as_bytes().to_owned(),
+            })
             .collect();
         self.0.map(&headers)
     }
@@ -144,8 +148,14 @@ mod tests {
     #[test]
     fn test_headers() {
         let expected = vec![
-            (Vec::from("host"), Vec::from("example.com")),
-            (Vec::from("content-length"), Vec::from("101")),
+            KV {
+                k: "host".to_owned(),
+                v: Vec::from("example.com"),
+            },
+            KV {
+                k: "content-length".to_owned(),
+                v: Vec::from("101"),
+            },
         ];
         let mut req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")

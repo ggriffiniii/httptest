@@ -18,6 +18,8 @@ pub mod request;
 pub mod response;
 pub mod sequence;
 
+use sequence::KV;
+
 /// The core trait. Defines how an input value should be turned into an output
 /// value. This allows for a flexible pattern of composition where two or more
 /// mappers are chained together to form a readable and flexible manipulation.
@@ -81,11 +83,12 @@ pub fn eq<T>(value: T) -> Eq<T> {
     Eq(value)
 }
 /// The `Eq` mapper returned by [eq()](fn.eq.html)
-#[derive(Debug)]
-pub struct Eq<T>(T);
+pub struct Eq<T>(T)
+where
+    T: ?Sized;
 impl<IN, T> Mapper<IN> for Eq<T>
 where
-    T: Borrow<IN> + fmt::Debug + Send,
+    T: Borrow<IN> + fmt::Debug + Send + ?Sized,
     IN: PartialEq + ?Sized,
 {
     type Out = bool;
@@ -94,23 +97,12 @@ where
         self.0.borrow() == input
     }
 }
-
-/// Call Deref::deref() on the input and pass it to the next mapper.
-pub fn deref<M>(inner: M) -> Deref<M> {
-    Deref(inner)
-}
-/// The `Deref` mapper returned by [deref()](fn.deref.html)
-#[derive(Debug)]
-pub struct Deref<M>(M);
-impl<M, IN> Mapper<IN> for Deref<M>
+impl<T> fmt::Debug for Eq<T>
 where
-    M: Mapper<IN::Target>,
-    IN: std::ops::Deref,
+    T: fmt::Debug + ?Sized,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &IN) -> M::Out {
-        self.0.map(input.deref())
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Eq({:?})", &self.0)
     }
 }
 
@@ -246,13 +238,14 @@ pub struct UrlDecoded<M>(M);
 impl<IN, M> Mapper<IN> for UrlDecoded<M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    M: Mapper<[(String, String)]>,
+    M: Mapper<[KV<str, str>]>,
 {
     type Out = M::Out;
 
     fn map(&mut self, input: &IN) -> M::Out {
-        let decoded: Vec<(String, String)> = url::form_urlencoded::parse(input.as_ref())
+        let decoded: Vec<KV<str, str>> = url::form_urlencoded::parse(input.as_ref())
             .into_owned()
+            .map(|(k, v)| KV { k, v })
             .collect();
         self.0.map(&decoded)
     }
@@ -428,8 +421,14 @@ mod tests {
     #[test]
     fn test_url_decoded() {
         let expected = vec![
-            ("key 1".to_owned(), "value 1".to_owned()),
-            ("key2".to_owned(), "".to_owned()),
+            KV {
+                k: "key 1".to_owned(),
+                v: "value 1".to_owned(),
+            },
+            KV {
+                k: "key2".to_owned(),
+                v: "".to_owned(),
+            },
         ];
         let mut c = request::query(url_decoded(eq(expected)));
         let req = http::Request::get("https://example.com/path?key%201=value%201&key2")

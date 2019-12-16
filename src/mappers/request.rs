@@ -1,7 +1,6 @@
 //! Mappers that extract information from HTTP requests.
 
-use super::Mapper;
-use crate::mappers::sequence::KV;
+use super::{Mapper, KV};
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
 pub fn method<M>(inner: M) -> Method<M> {

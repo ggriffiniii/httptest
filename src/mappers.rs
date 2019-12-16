@@ -16,9 +16,6 @@ pub use crate::any_of;
 
 pub mod request;
 pub mod response;
-pub mod sequence;
-
-use sequence::KV;
 
 /// The core trait. Defines how an input value should be turned into an output
 /// value. This allows for a flexible pattern of composition where two or more
@@ -228,6 +225,32 @@ where
     }
 }
 
+/// A key-value pair.
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct KV<K, V>
+where
+    Self: Sized,
+    K: ToOwned + ?Sized,
+    V: ToOwned + ?Sized,
+{
+    /// The key
+    pub k: K::Owned,
+    /// The value
+    pub v: V::Owned,
+}
+
+/// Create a KV from the provided key-value pair.
+pub fn kv<K, V>(k: &K, v: &V) -> KV<K, V>
+where
+    K: ToOwned + ?Sized,
+    V: ToOwned + ?Sized,
+{
+    KV {
+        k: k.to_owned(),
+        v: v.to_owned(),
+    }
+}
+
 /// url decode the input and pass the resulting slice of key-value pairs to the next mapper.
 pub fn url_decoded<M>(inner: M) -> UrlDecoded<M> {
     UrlDecoded(inner)
@@ -315,6 +338,84 @@ where
 impl<F> fmt::Debug for MapFn<F> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MapFn")
+    }
+}
+
+/// true if the provided mapper returns true for any of the elements in the
+/// sequence.
+pub fn contains_entry<M>(inner: M) -> ContainsEntry<M> {
+    ContainsEntry(inner)
+}
+/// The `ContainsEntry` mapper returned by [contains_entry()](fn.contains_entry.html)
+#[derive(Debug)]
+pub struct ContainsEntry<M>(M);
+impl<M, E> Mapper<[E]> for ContainsEntry<M>
+where
+    M: Mapper<E, Out = bool>,
+{
+    type Out = bool;
+
+    fn map(&mut self, input: &[E]) -> bool {
+        for elem in input {
+            if self.0.map(elem) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// extract the key from a key-value pair.
+pub fn key<M>(inner: M) -> Key<M> {
+    Key(inner)
+}
+/// The `Key` mapper returned by [key()](fn.key.html)
+#[derive(Debug)]
+pub struct Key<M>(M);
+impl<M, K, V> Mapper<KV<K, V>> for Key<M>
+where
+    K: ToOwned + ?Sized,
+    V: ToOwned + ?Sized,
+    M: Mapper<K>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &KV<K, V>) -> M::Out {
+        self.0.map(input.k.borrow())
+    }
+}
+
+/// extract the value from a key-value pair.
+pub fn value<M>(inner: M) -> Value<M> {
+    Value(inner)
+}
+/// The `Value` mapper returned by [value()](fn.value.html)
+#[derive(Debug)]
+pub struct Value<M>(M);
+impl<M, K, V> Mapper<KV<K, V>> for Value<M>
+where
+    K: ToOwned + ?Sized,
+    V: ToOwned + ?Sized,
+    M: Mapper<V>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &KV<K, V>) -> M::Out {
+        self.0.map(input.v.borrow())
+    }
+}
+
+impl<K, V, KMapper, VMapper> Mapper<KV<K, V>> for (KMapper, VMapper)
+where
+    K: ToOwned + ?Sized,
+    V: ToOwned + ?Sized,
+    KMapper: Mapper<K, Out = bool>,
+    VMapper: Mapper<V, Out = bool>,
+{
+    type Out = bool;
+
+    fn map(&mut self, input: &KV<K, V>) -> bool {
+        self.0.map(input.k.borrow()) && self.1.map(input.v.borrow())
     }
 }
 
@@ -465,6 +566,42 @@ mod tests {
         assert_eq!(true, c.map(&20));
         assert_eq!(true, c.map(&0));
         assert_eq!(false, c.map(&11));
+    }
+
+    #[test]
+    fn test_contains_entry() {
+        let mut c = contains_entry(eq(100));
+        assert_eq!(true, c.map(vec![100, 200, 300].as_slice()));
+        assert_eq!(false, c.map(vec![99, 200, 300].as_slice()));
+    }
+
+    #[test]
+    fn test_key() {
+        let kv: KV<str, str> = KV {
+            k: "key1".to_owned(),
+            v: "value1".to_owned(),
+        };
+        assert_eq!(true, key(eq("key1")).map(&kv));
+        assert_eq!(false, key(eq("key2")).map(&kv));
+    }
+
+    #[test]
+    fn test_value() {
+        let kv = kv("key1", "value1");
+        assert_eq!(true, value(eq("value1")).map(&kv));
+        assert_eq!(false, value(eq("value2")).map(&kv));
+    }
+
+    #[test]
+    fn test_tuple() {
+        let kv: KV<str, str> = KV {
+            k: "key1".to_owned(),
+            v: "value1".to_owned(),
+        };
+        assert_eq!(true, (matches("key1"), any()).map(&kv));
+        assert_eq!(true, (matches("key1"), matches("value1")).map(&kv));
+        assert_eq!(false, (matches("key1"), matches("value2")).map(&kv));
+        assert_eq!(false, (matches("key2"), matches("value1")).map(&kv));
     }
 
     #[test]

@@ -112,7 +112,7 @@ async fn test_json() {
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert!(all_of![
         response::status_code(eq(200)),
-        response::headers(sequence::contains((
+        response::headers(contains_entry((
             eq("content-type"),
             eq(&b"application/json"[..]),
         ))),
@@ -161,7 +161,7 @@ async fn test_url_encoded() {
         Expectation::matching(all_of![
             request::method(eq("GET")),
             request::path(eq("/foo")),
-            request::query(url_decoded(sequence::contains((eq("key"), eq("value"),)))),
+            request::query(url_decoded(contains_entry((eq("key"), eq("value"))))),
         ])
         .times(Times::Exactly(1))
         .respond_with(url_encoded(my_data.clone())),
@@ -173,11 +173,11 @@ async fn test_url_encoded() {
     let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
     assert!(all_of![
         response::status_code(eq(200)),
-        response::headers(sequence::contains((
+        response::headers(contains_entry((
             eq("content-type"),
             eq(&b"application/x-www-form-urlencoded"[..]),
         ))),
-        response::body(url_decoded(sequence::contains((eq("key"), eq("value"))))),
+        response::body(url_decoded(contains_entry((eq("key"), eq("value"))))),
     ]
     .matches(&resp));
 

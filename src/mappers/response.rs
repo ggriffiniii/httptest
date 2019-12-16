@@ -1,7 +1,6 @@
 //! Mappers that extract information from HTTP responses.
 
-use super::Mapper;
-use crate::mappers::sequence::KV;
+use super::{Mapper, KV};
 
 /// Extract the status code from the HTTP response and pass it to the next mapper.
 pub fn status_code<M>(inner: M) -> StatusCode<M> {

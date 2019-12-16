@@ -31,8 +31,8 @@ async fn test_readme() {
     // with a 200 status code.
     server.expect(
         Expectation::matching(all_of![
-            request::method(eq("GET")),
-            request::path(eq("/foo"))
+            request::method("GET"),
+            request::path("/foo")
         ])
         .times(Times::Exactly(1))
         .respond_with(status_code(200)),
@@ -42,8 +42,8 @@ async fn test_readme() {
     // {'result': 'success'}
     server.expect(
         Expectation::matching(all_of![
-            request::method(eq("POST")),
-            request::path(eq("/bar")),
+            request::method("POST"),
+            request::path("/bar"),
             request::body(json_decoded(eq(json!({"foo": "bar"})))),
         ])
         .times(Times::Between(1..=3))

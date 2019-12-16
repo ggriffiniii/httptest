@@ -1,4 +1,5 @@
-use httptest_core::{Matcher, Responder};
+use crate::mappers::Matcher;
+use crate::responders::Responder;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -200,8 +201,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
         response_future
     };
     if let Some(f) = response_future {
-        let resp = f.await;
-        resp.map(hyper::Body::from)
+        f.await
     } else {
         http::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
@@ -307,15 +307,15 @@ fn cardinality_error(
     matcher: &dyn Matcher<FullRequest>,
     cardinality: &Times,
     hit_count: usize,
-) -> Pin<Box<dyn Future<Output = http::Response<Vec<u8>>> + Send + 'static>> {
-    let body = format!(
+) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
+    let body = hyper::Body::from(format!(
         "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
         matcher, hit_count, cardinality,
-    );
+    ));
     Box::pin(async move {
         http::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-            .body(body.into())
+            .body(body)
             .unwrap()
     })
 }

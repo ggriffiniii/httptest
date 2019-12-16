@@ -221,7 +221,6 @@ macro_rules! vec_of_boxes {
 
 pub mod mappers;
 pub mod responders;
-pub use httptest_server::{Expectation, Times, Server};
-//mod server;
+mod server;
 
-//pub use server::{Expectation, ExpectationBuilder, Server, Times};
+pub use server::{Expectation, ExpectationBuilder, Server, Times};

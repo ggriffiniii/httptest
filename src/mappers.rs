@@ -7,8 +7,6 @@
 use std::borrow::Borrow;
 use std::fmt;
 
-pub use httptest_core::{Mapper, Matcher};
-
 // import the any_of and all_of macros from crate root so they are accessible if
 // people glob import this module.
 #[doc(inline)]
@@ -19,6 +17,46 @@ pub use crate::any_of;
 pub mod request;
 pub mod response;
 pub mod sequence;
+
+/// The core trait. Defines how an input value should be turned into an output
+/// value. This allows for a flexible pattern of composition where two or more
+/// mappers are chained together to form a readable and flexible manipulation.
+///
+/// There is a special case of a Mapper that outputs a bool that is called a
+/// Matcher.
+pub trait Mapper<IN>: Send + fmt::Debug
+where
+    IN: ?Sized,
+{
+    /// The output type.
+    type Out;
+
+    /// Map an input to output.
+    fn map(&mut self, input: &IN) -> Self::Out;
+}
+
+/// Matcher is just a special case of Mapper that returns a boolean. It simply
+/// provides the `matches` method rather than `map` as that reads a little
+/// better.
+///
+/// There is a blanket implementation for all Mappers that output bool values.
+/// You should never implement Matcher yourself, instead implement Mapper with a
+/// bool Out parameter.
+pub trait Matcher<IN>: Send + fmt::Debug
+where
+    IN: ?Sized,
+{
+    /// true if the input matches.
+    fn matches(&mut self, input: &IN) -> bool;
+}
+impl<T, IN> Matcher<IN> for T
+where
+    T: Mapper<IN, Out = bool>,
+{
+    fn matches(&mut self, input: &IN) -> bool {
+        self.map(input)
+    }
+}
 
 /// Always true.
 pub fn any() -> Any {

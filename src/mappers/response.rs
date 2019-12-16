@@ -1,6 +1,6 @@
 //! Mappers that extract information from HTTP responses.
 
-use httptest_core::Mapper;
+use super::Mapper;
 
 /// Extract the status code from the HTTP response and pass it to the next mapper.
 pub fn status_code<M>(inner: M) -> StatusCode<M> {
@@ -70,13 +70,13 @@ mod tests {
     #[test]
     fn test_status_code() {
         let resp = http::Response::builder()
-            .status(http::StatusCode::NOT_FOUND)
+            .status(hyper::StatusCode::NOT_FOUND)
             .body("")
             .unwrap();
         assert!(status_code(eq(404)).map(&resp));
 
         let resp = http::Response::builder()
-            .status(http::StatusCode::OK)
+            .status(hyper::StatusCode::OK)
             .body("")
             .unwrap();
         assert!(status_code(eq(200)).map(&resp));

@@ -1,5 +1,8 @@
 # httptest
 
+[![](https://meritbadge.herokuapp.com/httptest)](https://crates.io/crates/httptest)
+[![]( https://docs.rs/httptest/badge.svg)](https://docs.rs/httptest)
+
 Provide convenient mechanism for testing http clients against a locally
 running http server. The typical usage is as follows:
 
@@ -7,6 +10,7 @@ running http server. The typical usage is as follows:
 * Configure the server by adding expectations
 * Test your http client by making requests to the server
 * On Drop the server verifies all expectations were met.
+
 
 ## Example Test
 

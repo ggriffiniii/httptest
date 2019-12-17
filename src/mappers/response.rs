@@ -87,16 +87,8 @@ mod tests {
 
     #[test]
     fn test_headers() {
-        let expected: Vec<KV<str, [u8]>> = vec![
-            KV {
-                k: "host".to_owned(),
-                v: Vec::from("example.com"),
-            },
-            KV {
-                k: "content-length".to_owned(),
-                v: Vec::from("101"),
-            },
-        ];
+        let expected: Vec<KV<str, [u8]>> =
+            vec![kv("host", b"example.com"), kv("content-length", b"101")];
         let resp = http::Response::builder()
             .header("host", "example.com")
             .header("content-length", 101)
@@ -109,6 +101,6 @@ mod tests {
     #[test]
     fn test_body() {
         let resp = http::Response::builder().body("my request body").unwrap();
-        assert!(body(eq("my request body")).map(&resp));
+        assert!(body("my request body").map(&resp));
     }
 }

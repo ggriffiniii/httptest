@@ -112,12 +112,12 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(path(eq("/foo")).map(&req));
+        assert!(path("/foo").map(&req));
 
         let req = http::Request::get("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(path(eq("/foobar")).map(&req))
+        assert!(path("/foobar").map(&req))
     }
 
     #[test]
@@ -125,11 +125,11 @@ mod tests {
         let req = http::Request::get("https://example.com/path?foo=bar&baz=bat")
             .body("")
             .unwrap();
-        assert!(query(eq("foo=bar&baz=bat")).map(&req));
+        assert!(query("foo=bar&baz=bat").map(&req));
         let req = http::Request::get("https://example.com/path?search=1")
             .body("")
             .unwrap();
-        assert!(query(eq("search=1")).map(&req));
+        assert!(query("search=1").map(&req));
     }
 
     #[test]
@@ -137,24 +137,18 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(method(eq("GET")).map(&req));
+        assert!(method("GET").map(&req));
         let req = http::Request::post("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(method(eq("POST")).map(&req));
+        assert!(method("POST").map(&req));
     }
 
     #[test]
     fn test_headers() {
         let expected = vec![
-            KV {
-                k: "host".to_owned(),
-                v: Vec::from("example.com"),
-            },
-            KV {
-                k: "content-length".to_owned(),
-                v: Vec::from("101"),
-            },
+            kv("host", &b"example.com"[..]),
+            kv("content-length", b"101"),
         ];
         let mut req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
@@ -178,6 +172,6 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("my request body")
             .unwrap();
-        assert!(body(eq("my request body")).map(&req));
+        assert!(body("my request body").map(&req));
     }
 }

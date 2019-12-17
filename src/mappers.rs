@@ -557,16 +557,7 @@ mod tests {
 
     #[test]
     fn test_url_decoded() {
-        let expected = vec![
-            KV {
-                k: "key 1".to_owned(),
-                v: "value 1".to_owned(),
-            },
-            KV {
-                k: "key2".to_owned(),
-                v: "".to_owned(),
-            },
-        ];
+        let expected = vec![kv("key 1", "value 1"), kv("key2", "")];
         let mut c = request::query(url_decoded(eq(expected)));
         let req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
@@ -613,31 +604,25 @@ mod tests {
 
     #[test]
     fn test_key() {
-        let kv: KV<str, str> = KV {
-            k: "key1".to_owned(),
-            v: "value1".to_owned(),
-        };
-        assert_eq!(true, key(eq("key1")).map(&kv));
-        assert_eq!(false, key(eq("key2")).map(&kv));
+        let kv = kv("key1", "value1");
+        assert_eq!(true, key("key1").map(&kv));
+        assert_eq!(false, key("key2").map(&kv));
     }
 
     #[test]
     fn test_value() {
         let kv = kv("key1", "value1");
-        assert_eq!(true, value(eq("value1")).map(&kv));
-        assert_eq!(false, value(eq("value2")).map(&kv));
+        assert_eq!(true, value("value1").map(&kv));
+        assert_eq!(false, value("value2").map(&kv));
     }
 
     #[test]
     fn test_tuple() {
-        let kv: KV<str, str> = KV {
-            k: "key1".to_owned(),
-            v: "value1".to_owned(),
-        };
-        assert_eq!(true, (matches("key1"), any()).map(&kv));
-        assert_eq!(true, (matches("key1"), matches("value1")).map(&kv));
-        assert_eq!(false, (matches("key1"), matches("value2")).map(&kv));
-        assert_eq!(false, (matches("key2"), matches("value1")).map(&kv));
+        let kv = kv("key1", "value1");
+        assert_eq!(true, ("key1", any()).map(&kv));
+        assert_eq!(true, ("key1", "value1").map(&kv));
+        assert_eq!(false, ("key1", "value2").map(&kv));
+        assert_eq!(false, ("key2", "value1").map(&kv));
     }
 
     #[test]

@@ -226,12 +226,7 @@ fn hit_count_is_valid(cardinality: &Times, hit_count: usize) -> bool {
         Times::AtLeast(_) => false,
         Times::AtMost(limit) if hit_count <= *limit => true,
         Times::AtMost(_) => false,
-        Times::Between(range)
-            if hit_count <= *range.end()
-                && hit_count >= *range.start() =>
-        {
-            true
-        }
+        Times::Between(range) if hit_count <= *range.end() && hit_count >= *range.start() => true,
         Times::Between(_) => false,
         Times::Exactly(limit) if hit_count == *limit => true,
         Times::Exactly(_) => false,

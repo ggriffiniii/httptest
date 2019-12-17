@@ -10,7 +10,7 @@ use std::sync::Mutex;
 /// using [Server::run](struct.Server.html#method.run). This way each test
 /// contains it's own independent state. However for very large test suites it
 /// may be beneficial to share servers between test runs. This is typically only
-/// desireable when running into limits because the test framework spins up an
+/// desirable when running into limits because the test framework spins up an
 /// independent thread for each test and system wide resources (TCP ports) may
 /// become scarce. In those cases you can opt into using a shared ServerPool that
 /// will create a maximum of N servers that tests can share. Invoking

@@ -1,4 +1,4 @@
-use httptest::{mappers::*, responders::*, Expectation, Times};
+use httptest::{mappers::*, responders::*, Expectation};
 use std::future::Future;
 
 async fn read_response_body(
@@ -18,7 +18,6 @@ async fn test_server() {
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(Times::Exactly(1))
             .respond_with(status_code(200)),
     );
 
@@ -39,7 +38,6 @@ async fn test_expectation_cardinality_not_reached() {
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(Times::Exactly(1))
             .respond_with(status_code(200)),
     );
 
@@ -54,14 +52,12 @@ async fn test_expectation_cardinality_exceeded() {
     // Setup a server to expect a single GET /foo request.
     let server = httptest::Server::run();
     server.expect(
-        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(Times::Exactly(1))
-            .respond_with(
-                http::Response::builder()
-                    .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Vec::new())
-                    .unwrap(),
-            ),
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")]).respond_with(
+            http::Response::builder()
+                .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Vec::new())
+                .unwrap(),
+        ),
     );
 
     // Issue the GET /foo to the server and verify it returns a 200.
@@ -90,7 +86,6 @@ async fn test_json() {
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(Times::Exactly(1))
             .respond_with(json_encoded(my_data.clone())),
     );
 
@@ -115,7 +110,7 @@ async fn test_cycle() {
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(Times::Exactly(4))
+            .times(4..=4)
             .respond_with(cycle![status_code(200), status_code(404),]),
     );
 
@@ -145,7 +140,6 @@ async fn test_url_encoded() {
             request::path("/foo"),
             request::query(url_decoded(contains_entry(("key", "value")))),
         ])
-        .times(Times::Exactly(1))
         .respond_with(url_encoded(my_data.clone())),
     );
 
@@ -168,7 +162,7 @@ async fn test_url_encoded() {
 
 #[tokio::test]
 async fn test_readme() {
-    use httptest::{mappers::*, responders::*, Expectation, Server, Times};
+    use httptest::{mappers::*, responders::*, Expectation, Server};
     use serde_json::json;
     // Starting a logger within the test can make debugging a failed test
     // easier. The mock http server will log::debug every request and response
@@ -182,7 +176,6 @@ async fn test_readme() {
     // with a 200 status code.
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(Times::Exactly(1))
             .respond_with(status_code(200)),
     );
     // Configure the server to also receive between 1 and 3 POST /bar requests
@@ -194,7 +187,7 @@ async fn test_readme() {
             request::path("/bar"),
             request::body(json_decoded(eq(json!({"foo": "bar"})))),
         ])
-        .times(Times::Between(1..=3))
+        .times(1..=3)
         .respond_with(json_encoded(json!({"result": "success"}))),
     );
 

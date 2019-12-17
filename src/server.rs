@@ -1,7 +1,9 @@
 use crate::mappers::Matcher;
 use crate::responders::Responder;
+use std::fmt;
 use std::future::Future;
 use std::net::SocketAddr;
+use std::ops::{Bound, RangeBounds};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
@@ -125,10 +127,10 @@ impl Server {
             return;
         }
         for expectation in state.expected.iter() {
-            if !hit_count_is_valid(&expectation.cardinality, expectation.hit_count) {
+            if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(format!(
                     "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
-                    &expectation.matcher, expectation.hit_count, &expectation.cardinality,
+                    &expectation.matcher, expectation.hit_count, &expectation.times,
                 ));
             }
         }
@@ -164,12 +166,12 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
             if expectation.matcher.matches(&req) {
                 log::debug!("found matcher: {:?}", &expectation.matcher);
                 expectation.hit_count += 1;
-                if cardinality_not_exceeded(&expectation.cardinality, expectation.hit_count) {
+                if !times_exceeded(expectation.times.1, expectation.hit_count) {
                     break Some(expectation.responder.respond());
                 } else {
-                    break Some(Box::pin(cardinality_error(
+                    break Some(Box::pin(times_error(
                         &*expectation.matcher as &dyn Matcher<FullRequest>,
-                        &expectation.cardinality,
+                        expectation.times,
                         expectation.hit_count,
                     )));
                 }
@@ -191,53 +193,23 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
     }
 }
 
-/// How many requests should an expectation receive.
-#[derive(Debug, Clone)]
-pub enum Times {
-    /// Allow any number of requests.
-    Any,
-    /// Require that at least this many requests are received.
-    AtLeast(usize),
-    /// Require that no more than this many requests are received.
-    AtMost(usize),
-    /// Require that the number of requests received is within this range.
-    Between(std::ops::RangeInclusive<usize>),
-    /// Require that exactly this many requests are received.
-    Exactly(usize),
-}
-
-fn cardinality_not_exceeded(cardinality: &Times, hit_count: usize) -> bool {
-    match cardinality {
-        Times::Any => true,
-        Times::AtLeast(_) => true,
-        Times::AtMost(limit) if hit_count <= *limit => true,
-        Times::AtMost(_) => false,
-        Times::Between(range) if hit_count <= *range.end() => true,
-        Times::Between(_) => false,
-        Times::Exactly(limit) if hit_count <= *limit => true,
-        Times::Exactly(_) => false,
+fn times_exceeded(end_bound: Bound<usize>, hit_count: usize) -> bool {
+    match end_bound {
+        Bound::Included(limit) if hit_count > limit => true,
+        Bound::Excluded(limit) if hit_count >= limit => true,
+        _ => false,
     }
 }
 
-fn hit_count_is_valid(cardinality: &Times, hit_count: usize) -> bool {
-    match cardinality {
-        Times::Any => true,
-        Times::AtLeast(lower_bound) if hit_count >= *lower_bound => true,
-        Times::AtLeast(_) => false,
-        Times::AtMost(limit) if hit_count <= *limit => true,
-        Times::AtMost(_) => false,
-        Times::Between(range) if hit_count <= *range.end() && hit_count >= *range.start() => true,
-        Times::Between(_) => false,
-        Times::Exactly(limit) if hit_count == *limit => true,
-        Times::Exactly(_) => false,
-    }
+fn hit_count_is_valid(bounds: (Bound<usize>, Bound<usize>), hit_count: usize) -> bool {
+    bounds.contains(&hit_count)
 }
 
 /// An expectation to be asserted by the server.
 #[derive(Debug)]
 pub struct Expectation {
     matcher: Box<dyn Matcher<FullRequest>>,
-    cardinality: Times,
+    times: (Bound<usize>, Bound<usize>),
     responder: Box<dyn Responder>,
     hit_count: usize,
 }
@@ -247,7 +219,8 @@ impl Expectation {
     pub fn matching(matcher: impl Matcher<FullRequest> + 'static) -> ExpectationBuilder {
         ExpectationBuilder {
             matcher: Box::new(matcher),
-            cardinality: Times::Exactly(1),
+            // expect exactly one request by default.
+            times: (Bound::Included(1), Bound::Included(1)),
         }
     }
 }
@@ -255,14 +228,40 @@ impl Expectation {
 /// Define expectations using a builder pattern.
 pub struct ExpectationBuilder {
     matcher: Box<dyn Matcher<FullRequest>>,
-    cardinality: Times,
+    times: (Bound<usize>, Bound<usize>),
 }
 
 impl ExpectationBuilder {
-    /// How many requests should this expectation receive.
-    pub fn times(self, cardinality: Times) -> ExpectationBuilder {
+    /// Expect this many requests.
+    ///
+    /// ```
+    /// # use httptest::{Expectation, mappers::any, responders::status_code};
+    /// // exactly 2 requests
+    /// Expectation::matching(any()).times(2..=2).respond_with(status_code(200));
+    /// // at least 2 requests
+    /// Expectation::matching(any()).times(2..).respond_with(status_code(200));
+    /// // at most 2 requests
+    /// Expectation::matching(any()).times(..=2).respond_with(status_code(200));
+    /// // between 2 and 5 inclusive
+    /// Expectation::matching(any()).times(2..6).respond_with(status_code(200));
+    /// // equivalently
+    /// Expectation::matching(any()).times(2..=5).respond_with(status_code(200));
+    /// ```
+    pub fn times<R>(self, range: R) -> ExpectationBuilder
+    where
+        R: RangeBounds<usize>,
+    {
+        fn cloned_range(b: Bound<&usize>) -> Bound<usize> {
+            match b {
+                Bound::Included(b) => Bound::Included(*b),
+                Bound::Excluded(b) => Bound::Excluded(*b),
+                Bound::Unbounded => Bound::Unbounded,
+            }
+        }
+        let start_bound = cloned_range(range.start_bound());
+        let end_bound = cloned_range(range.end_bound());
         ExpectationBuilder {
-            cardinality,
+            times: (start_bound, end_bound),
             ..self
         }
     }
@@ -271,7 +270,7 @@ impl ExpectationBuilder {
     pub fn respond_with(self, responder: impl Responder + 'static) -> Expectation {
         Expectation {
             matcher: self.matcher,
-            cardinality: self.cardinality,
+            times: self.times,
             responder: Box::new(responder),
             hit_count: 0,
         }
@@ -313,14 +312,16 @@ impl Default for ServerStateInner {
     }
 }
 
-fn cardinality_error(
+fn times_error(
     matcher: &dyn Matcher<FullRequest>,
-    cardinality: &Times,
+    times: (Bound<usize>, Bound<usize>),
     hit_count: usize,
 ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
     let body = hyper::Body::from(format!(
-        "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
-        matcher, hit_count, cardinality,
+        "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
+        matcher,
+        hit_count,
+        RangeDisplay(times),
     ));
     Box::pin(async move {
         http::Response::builder()
@@ -328,4 +329,36 @@ fn cardinality_error(
             .body(body)
             .unwrap()
     })
+}
+
+struct RangeDisplay((Bound<usize>, Bound<usize>));
+impl fmt::Display for RangeDisplay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // canonicalize the bounds to inclusive or unbounded.
+        enum MyBound {
+            Included(usize),
+            Unbounded,
+        }
+        let inclusive_start = match (self.0).0 {
+            Bound::Included(x) => MyBound::Included(x),
+            Bound::Excluded(x) => MyBound::Included(x + 1),
+            Bound::Unbounded => MyBound::Unbounded,
+        };
+        let inclusive_end = match (self.0).1 {
+            Bound::Included(x) => MyBound::Included(x),
+            Bound::Excluded(x) => MyBound::Included(x - 1),
+            Bound::Unbounded => MyBound::Unbounded,
+        };
+        match (inclusive_start, inclusive_end) {
+            (MyBound::Included(min), MyBound::Unbounded) => write!(f, "AtLeast({})", min),
+            (MyBound::Unbounded, MyBound::Included(max)) => write!(f, "AtMost({})", max),
+            (MyBound::Included(min), MyBound::Included(max)) if min == max => {
+                write!(f, "Exactly({})", max)
+            }
+            (MyBound::Included(min), MyBound::Included(max)) => {
+                write!(f, "Between({}..={})", min, max)
+            }
+            (MyBound::Unbounded, MyBound::Unbounded) => write!(f, "Any"),
+        }
+    }
 }

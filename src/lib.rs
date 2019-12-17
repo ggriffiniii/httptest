@@ -12,7 +12,7 @@
 //!
 //! ```
 //! # async fn foo() {
-//! use httptest::{Server, Expectation, Times, mappers::*, responders::*};
+//! use httptest::{Server, Expectation, mappers::*, responders::*};
 //! // Start a server running on a local ephemeral port.
 //! let server = Server::run();
 //! // Configure the server to expect a single GET /foo request and respond
@@ -22,7 +22,6 @@
 //!         request::method("GET"),
 //!         request::path("/foo")
 //!     ])
-//!     .times(Times::Exactly(1))
 //!     .respond_with(status_code(200)),
 //! );
 //!
@@ -67,12 +66,12 @@
 //! ### Expectation example
 //!
 //! ```
-//! use httptest::{Expectation, mappers::*, responders::*, Times};
+//! use httptest::{Expectation, mappers::*, responders::*};
 //!
 //! // Define an Expectation that matches any request to path /foo, expects to
 //! // receive at least 1 such request, and responds with a 200 response.
 //! Expectation::matching(request::path("/foo"))
-//!     .times(Times::AtLeast(1))
+//!     .times(1..)
 //!     .respond_with(status_code(200));
 //! ```
 //!
@@ -136,12 +135,27 @@
 //! ## Times
 //!
 //! Each expectation defines how many times a matching request is expected to
-//! be received. The [Times](enum.Times.html) enum defines the possibility.
-//! `Times::Exactly(1)` is the default value of an `Expectation` if one is not
-//! specified with the
-//! [times()](struct.ExpectationBuilder.html#method.times) method.
+//! be received. The default is exactly once. The ExpectationBuilder provides a
+//! [times](struct.ExpectationBuilder.html#method.times) method to specify the
+//! number of requests expected.
 //!
-//! The server will respond to any requests that violate the times request with
+//! ```
+//! # use httptest::{Expectation, mappers::any, responders::status_code};
+//! // Expect exactly one request
+//! Expectation::matching(any()).respond_with(status_code(200));
+//! // Expect at least 2 requests
+//! Expectation::matching(any()).times(2..).respond_with(status_code(200));
+//! // Expect at most 2 requests
+//! Expectation::matching(any()).times(..2).respond_with(status_code(200));
+//! // Expect between 2 and 5 requests
+//! Expectation::matching(any()).times(2..6).respond_with(status_code(200));
+//! // Expect between 2 and 5 requests
+//! Expectation::matching(any()).times(2..=5).respond_with(status_code(200));
+//! // Expect any number of requests.
+//! Expectation::matching(any()).times(..).respond_with(status_code(200));
+//! ```
+//!
+//! The server will respond to any requests that violate the times restriction with
 //! a 500 status code and the server will subsequently panic on Drop.
 //!
 //! ## Responder
@@ -228,5 +242,5 @@ pub mod responders;
 mod server;
 mod server_pool;
 
-pub use server::{Expectation, ExpectationBuilder, Server, Times};
+pub use server::{Expectation, ExpectationBuilder, Server};
 pub use server_pool::{ServerHandle, ServerPool};

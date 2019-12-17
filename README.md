@@ -17,7 +17,7 @@ running http server. The typical usage is as follows:
 ```rust
 #[tokio::test]
 async fn test_readme() {
-    use httptest::{mappers::*, responders::*, Expectation, Server, Times};
+    use httptest::{mappers::*, responders::*, Expectation, Server};
     use serde_json::json;
     // Starting a logger within the test can make debugging a failed test
     // easier. The mock http server will log::debug every request and response
@@ -34,7 +34,6 @@ async fn test_readme() {
             request::method("GET"),
             request::path("/foo")
         ])
-        .times(Times::Exactly(1))
         .respond_with(status_code(200)),
     );
     // Configure the server to also receive between 1 and 3 POST /bar requests
@@ -46,7 +45,7 @@ async fn test_readme() {
             request::path("/bar"),
             request::body(json_decoded(eq(json!({"foo": "bar"})))),
         ])
-        .times(Times::Between(1..=3))
+        .times(1..=3)
         .respond_with(json_encoded(json!({"result": "success"}))),
     );
 

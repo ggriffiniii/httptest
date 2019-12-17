@@ -111,6 +111,7 @@ impl Server {
 
     /// Add a new expectation to the server.
     pub fn expect(&self, expectation: Expectation) {
+        log::debug!("expectation added: {:?}", expectation);
         self.state.push_expectation(expectation);
     }
 

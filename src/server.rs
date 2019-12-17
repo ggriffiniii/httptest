@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 type FullRequest = http::Request<hyper::body::Bytes>;
 
 /// The Server
+#[derive(Debug)]
 pub struct Server {
     trigger_shutdown: Option<futures::channel::oneshot::Sender<()>>,
     join_handle: Option<std::thread::JoinHandle<()>>,
@@ -123,23 +124,7 @@ impl Server {
             return;
         }
         for expectation in state.expected.iter() {
-            let is_valid_cardinality = match &expectation.cardinality {
-                Times::AnyNumber => true,
-                Times::AtLeast(lower_bound) if expectation.hit_count >= *lower_bound => true,
-                Times::AtLeast(_) => false,
-                Times::AtMost(limit) if expectation.hit_count <= *limit => true,
-                Times::AtMost(_) => false,
-                Times::Between(range)
-                    if expectation.hit_count <= *range.end()
-                        && expectation.hit_count >= *range.start() =>
-                {
-                    true
-                }
-                Times::Between(_) => false,
-                Times::Exactly(limit) if expectation.hit_count == *limit => true,
-                Times::Exactly(_) => false,
-            };
-            if !is_valid_cardinality {
+            if !hit_count_is_valid(&expectation.cardinality, expectation.hit_count) {
                 panic!(format!(
                     "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
                     &expectation.matcher, expectation.hit_count, &expectation.cardinality,
@@ -177,17 +162,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
             if expectation.matcher.matches(&req) {
                 log::debug!("found matcher: {:?}", &expectation.matcher);
                 expectation.hit_count += 1;
-                let is_valid_cardinality = match &expectation.cardinality {
-                    Times::AnyNumber => true,
-                    Times::AtLeast(_) => true,
-                    Times::AtMost(limit) if expectation.hit_count <= *limit => true,
-                    Times::AtMost(_) => false,
-                    Times::Between(range) if expectation.hit_count <= *range.end() => true,
-                    Times::Between(_) => false,
-                    Times::Exactly(limit) if expectation.hit_count <= *limit => true,
-                    Times::Exactly(_) => false,
-                };
-                if is_valid_cardinality {
+                if cardinality_not_exceeded(&expectation.cardinality, expectation.hit_count) {
                     break Some(expectation.responder.respond());
                 } else {
                     break Some(Box::pin(cardinality_error(
@@ -218,7 +193,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
 #[derive(Debug, Clone)]
 pub enum Times {
     /// Allow any number of requests.
-    AnyNumber,
+    Any,
     /// Require that at least this many requests are received.
     AtLeast(usize),
     /// Require that no more than this many requests are received.
@@ -229,7 +204,40 @@ pub enum Times {
     Exactly(usize),
 }
 
+fn cardinality_not_exceeded(cardinality: &Times, hit_count: usize) -> bool {
+    match cardinality {
+        Times::Any => true,
+        Times::AtLeast(_) => true,
+        Times::AtMost(limit) if hit_count <= *limit => true,
+        Times::AtMost(_) => false,
+        Times::Between(range) if hit_count <= *range.end() => true,
+        Times::Between(_) => false,
+        Times::Exactly(limit) if hit_count <= *limit => true,
+        Times::Exactly(_) => false,
+    }
+}
+
+fn hit_count_is_valid(cardinality: &Times, hit_count: usize) -> bool {
+    match cardinality {
+        Times::Any => true,
+        Times::AtLeast(lower_bound) if hit_count >= *lower_bound => true,
+        Times::AtLeast(_) => false,
+        Times::AtMost(limit) if hit_count <= *limit => true,
+        Times::AtMost(_) => false,
+        Times::Between(range)
+            if hit_count <= *range.end()
+                && hit_count >= *range.start() =>
+        {
+            true
+        }
+        Times::Between(_) => false,
+        Times::Exactly(limit) if hit_count == *limit => true,
+        Times::Exactly(_) => false,
+    }
+}
+
 /// An expectation to be asserted by the server.
+#[derive(Debug)]
 pub struct Expectation {
     matcher: Box<dyn Matcher<FullRequest>>,
     cardinality: Times,
@@ -273,7 +281,7 @@ impl ExpectationBuilder {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct ServerState(Arc<Mutex<ServerStateInner>>);
 
 impl ServerState {
@@ -293,6 +301,7 @@ impl Default for ServerState {
     }
 }
 
+#[derive(Debug)]
 struct ServerStateInner {
     unexpected_requests: usize,
     expected: Vec<Expectation>,

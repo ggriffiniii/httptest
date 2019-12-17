@@ -19,8 +19,8 @@
 //! // with a 200 status code.
 //! server.expect(
 //!     Expectation::matching(all_of![
-//!         request::method(eq("GET")),
-//!         request::path(eq("/foo"))
+//!         request::method("GET"),
+//!         request::path("/foo")
 //!     ])
 //!     .times(Times::Exactly(1))
 //!     .respond_with(status_code(200)),
@@ -71,7 +71,7 @@
 //!
 //! // Define an Expectation that matches any request to path /foo, expects to
 //! // receive at least 1 such request, and responds with a 200 response.
-//! Expectation::matching(request::path(eq("/foo")))
+//! Expectation::matching(request::path("/foo"))
 //!     .times(Times::AtLeast(1))
 //!     .respond_with(status_code(200));
 //! ```
@@ -107,21 +107,25 @@
 //! // pull all the predefined mappers into our namespace.
 //! use httptest::mappers::*;
 //!
-//! // A mapper that returns true when the input equals "/foo"
+//! // &str, String, and &[u8] all implement mappers that test for equality.
+//! // All of these mappers return true when the input equals "/foo"
 //! let mut m = eq("/foo");
+//! let mut m = "/foo";
+//! let mut m = "/foo".to_string();
+//! let mut m = &b"/foo"[..];
 //!
 //! // A mapper that returns true when the input matches the regex "(foo|bar).*"
 //! let mut m = matches("(foo|bar).*");
 //!
 //! // A request matcher that matches a request to path "/foo"
-//! let mut m = request::path(eq("/foo"));
+//! let mut m = request::path("/foo");
 //!
 //! // A request matcher that matches a POST request
-//! let mut m = request::method(eq("POST"));
+//! let mut m = request::method("POST");
 //!
 //! // A request matcher that matches a POST with a path that matches the regex 'foo.*'
 //! let mut m = all_of![
-//!     request::method(eq("POST")),
+//!     request::method("POST"),
 //!     request::path(matches("foo.*")),
 //! ];
 //!
@@ -222,5 +226,7 @@ macro_rules! vec_of_boxes {
 pub mod mappers;
 pub mod responders;
 mod server;
+mod server_pool;
 
 pub use server::{Expectation, ExpectationBuilder, Server, Times};
+pub use server_pool::{ServerHandle, ServerPool};

@@ -231,6 +231,7 @@ async fn test_readme() {
     // panic if not.
 }
 
+// verify that the server can be started even if not run within a tokio context.
 #[test]
 fn test_outside_of_tokio_context() {
     let _ = pretty_env_logger::try_init();

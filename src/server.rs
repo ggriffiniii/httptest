@@ -132,10 +132,11 @@ impl Server {
                 ));
             }
         }
-        state.expected.clear();
         if state.unexpected_requests != 0 {
             panic!("{} unexpected requests received", state.unexpected_requests);
         }
+        // reset the server back to default state.
+        *state = ServerStateInner::default();
     }
 }
 

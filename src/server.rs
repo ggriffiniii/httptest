@@ -129,8 +129,8 @@ impl Server {
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(format!(
-                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {:?}",
-                    &expectation.matcher, expectation.hit_count, &expectation.times,
+                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
+                    &expectation.matcher, expectation.hit_count, RangeDisplay(expectation.times),
                 ));
             }
         }

@@ -134,8 +134,8 @@ impl Server {
                 ));
             }
         }
-        if state.unexpected_requests != 0 {
-            panic!("{} unexpected requests received", state.unexpected_requests);
+        if !state.unexpected_requests.is_empty() {
+            panic!("received the following unexpected requests:\n{:#?}", &state.unexpected_requests);
         }
         // reset the server back to default state.
         *state = ServerStateInner::default();
@@ -179,7 +179,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
         };
         if response_future.is_none() {
             log::debug!("no matcher found for request: {:?}", req);
-            state.unexpected_requests += 1;
+            state.unexpected_requests.push(req);
         }
         response_future
     };
@@ -299,7 +299,7 @@ impl Default for ServerState {
 
 #[derive(Debug)]
 struct ServerStateInner {
-    unexpected_requests: usize,
+    unexpected_requests: Vec<FullRequest>,
     expected: Vec<Expectation>,
 }
 

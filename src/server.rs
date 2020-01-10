@@ -112,9 +112,14 @@ impl Server {
     }
 
     /// Add a new expectation to the server.
+    #[track_caller]
     pub fn expect(&self, expectation: Expectation) {
         log::debug!("expectation added: {:?}", expectation);
-        self.state.push_expectation(expectation);
+        let location = std::panic::Location::caller();
+        self.state.push_expectation(ExpectationLoc {
+            expectation,
+            location,
+        });
     }
 
     /// Verify all registered expectations. Panic if any are not met, then clear
@@ -126,16 +131,23 @@ impl Server {
             state.expected.clear();
             return;
         }
-        for expectation in state.expected.iter() {
+        for ExpectationLoc {
+            expectation,
+            location,
+        } in state.expected.iter()
+        {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(format!(
-                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
-                    &expectation.matcher, expectation.hit_count, RangeDisplay(expectation.times),
+                    "\n\nFailed Expectation {}\n{:#?}\nrequests received: {}\nrequests expected: {}\n\n",
+                    location, &expectation.matcher, expectation.hit_count, RangeDisplay(expectation.times),
                 ));
             }
         }
         if !state.unexpected_requests.is_empty() {
-            panic!("received the following unexpected requests:\n{:#?}", &state.unexpected_requests);
+            panic!(
+                "received the following unexpected requests:\n{:#?}",
+                &state.unexpected_requests
+            );
         }
         // reset the server back to default state.
         *state = ServerStateInner::default();
@@ -161,7 +173,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
         let response_future = loop {
             let expectation = match iter.next() {
                 None => break None,
-                Some(expectation) => expectation,
+                Some(ExpectationLoc { expectation, .. }) => expectation,
             };
             if expectation.matcher.matches(&req) {
                 log::debug!("found matcher: {:?}", &expectation.matcher);
@@ -277,6 +289,12 @@ impl ExpectationBuilder {
     }
 }
 
+#[derive(Debug)]
+struct ExpectationLoc {
+    expectation: Expectation,
+    location: &'static std::panic::Location<'static>,
+}
+
 #[derive(Debug, Clone)]
 struct ServerState(Arc<Mutex<ServerStateInner>>);
 
@@ -285,7 +303,7 @@ impl ServerState {
         self.0.lock().expect("mutex poisoned")
     }
 
-    fn push_expectation(&self, expectation: Expectation) {
+    fn push_expectation(&self, expectation: ExpectationLoc) {
         let mut inner = self.lock();
         inner.expected.push(expectation);
     }
@@ -300,7 +318,7 @@ impl Default for ServerState {
 #[derive(Debug)]
 struct ServerStateInner {
     unexpected_requests: Vec<FullRequest>,
-    expected: Vec<Expectation>,
+    expected: Vec<ExpectationLoc>,
 }
 
 impl Default for ServerStateInner {

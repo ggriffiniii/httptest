@@ -130,12 +130,17 @@ impl Server {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(format!(
                     "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
-                    &expectation.matcher, expectation.hit_count, RangeDisplay(expectation.times),
+                    &expectation.matcher,
+                    expectation.hit_count,
+                    RangeDisplay(expectation.times),
                 ));
             }
         }
         if !state.unexpected_requests.is_empty() {
-            panic!("received the following unexpected requests:\n{:#?}", &state.unexpected_requests);
+            panic!(
+                "received the following unexpected requests:\n{:#?}",
+                &state.unexpected_requests
+            );
         }
         // reset the server back to default state.
         *state = ServerStateInner::default();

@@ -2,6 +2,7 @@
 //!
 //! Reponders determine how the server will respond.
 
+use std::convert::TryInto;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -16,74 +17,93 @@ pub trait Responder: Send + fmt::Debug {
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>>;
 }
 
-/// respond with the provided status code.
-pub fn status_code(code: u16) -> impl Responder {
-    StatusCode(code)
-}
-/// The `StatusCode` responder returned by [status_code()](fn.status_code.html)
+/// Convenient ResponseBuilder that implements Responder.
 #[derive(Debug)]
-pub struct StatusCode(u16);
-impl Responder for StatusCode {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
-        async fn _respond(status_code: u16) -> http::Response<hyper::Body> {
-            http::Response::builder()
-                .status(status_code)
-                .body(hyper::Body::empty())
-                .unwrap()
-        }
-        Box::pin(_respond(self.0))
+pub struct ResponseBuilder<B>(http::Response<B>);
+
+impl<B> ResponseBuilder<B> {
+    /// Set the http version.
+    pub fn version(mut self, version: http::Version) -> Self {
+        *self.0.version_mut() = version;
+        self
     }
+
+    /// Insert the provided header. Replacing any header that already exists with the same name.
+    pub fn insert_header<K, V>(mut self, name: K, value: V) -> Self
+    where
+        K: TryInto<http::header::HeaderName>,
+        K::Error: fmt::Debug,
+        V: TryInto<http::header::HeaderValue>,
+        V::Error: fmt::Debug,
+    {
+        let name: http::header::HeaderName = name.try_into().expect("invalid header name");
+        let value: http::header::HeaderValue = value.try_into().expect("invalid header value");
+        self.0.headers_mut().insert(name, value);
+        self
+    }
+
+    /// Insert the provided header. Appending the value to any header that already exists with the same name.
+    pub fn append_header<K, V>(mut self, name: K, value: V) -> Self
+    where
+        K: TryInto<http::header::HeaderName>,
+        K::Error: fmt::Debug,
+        V: TryInto<http::header::HeaderValue>,
+        V::Error: fmt::Debug,
+    {
+        let name: http::header::HeaderName = name.try_into().expect("invalid header name");
+        let value: http::header::HeaderValue = value.try_into().expect("invalid header value");
+        self.0.headers_mut().append(name, value);
+        self
+    }
+
+    /// Set the body of the header.
+    pub fn body<B2>(self, body: B2) -> ResponseBuilder<B2> {
+        ResponseBuilder(self.0.map(|_| body))
+    }
+}
+
+/// respond with the provided status code and an empty body.
+pub fn status_code(code: u16) -> ResponseBuilder<&'static str> {
+    ResponseBuilder(
+        http::Response::builder()
+            .status(code)
+            .body("")
+            .expect("invalid status code"),
+    )
 }
 
 /// respond with a body that is the json encoding of data.
 ///
 /// The status code will be `200` and the content-type will be
 /// `application/json`.
-pub fn json_encoded<T>(data: T) -> impl Responder
+pub fn json_encoded<T>(data: T) -> ResponseBuilder<String>
 where
     T: serde::Serialize,
 {
-    JsonEncoded(serde_json::to_string(&data).unwrap())
-}
-/// The `JsonEncoded` responder returned by [json_encoded()](fn.json_encoded.html)
-#[derive(Debug)]
-pub struct JsonEncoded(String);
-impl Responder for JsonEncoded {
-    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
-        async fn _respond(body: String) -> http::Response<hyper::Body> {
-            http::Response::builder()
-                .status(200)
-                .header("Content-Type", "application/json")
-                .body(body.into())
-                .unwrap()
-        }
-        Box::pin(_respond(self.0.clone()))
-    }
+    status_code(200)
+        .append_header("Content-Type", "application/json")
+        .body(serde_json::to_string(&data).expect("failed to serialize body"))
 }
 
 /// respond with a body that is the url encoding of data.
 ///
 /// The status code will be `200` and the content-type will be
 /// `application/x-www-form-urlencoded`.
-pub fn url_encoded<T>(data: T) -> impl Responder
+pub fn url_encoded<T>(data: T) -> ResponseBuilder<String>
 where
     T: serde::Serialize,
 {
-    UrlEncoded(serde_urlencoded::to_string(&data).unwrap())
+    status_code(200)
+        .append_header("Content-Type", "application/x-www-form-urlencoded")
+        .body(serde_urlencoded::to_string(&data).expect("failed to serialize body"))
 }
-/// The `UrlEncoded` responder returned by [url_encoded()](fn.url_encoded.html)
-#[derive(Debug)]
-pub struct UrlEncoded(String);
-impl Responder for UrlEncoded {
+
+impl<B> Responder for ResponseBuilder<B>
+where
+    B: Clone + Into<hyper::Body> + Send + fmt::Debug,
+{
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
-        async fn _respond(body: String) -> http::Response<hyper::Body> {
-            http::Response::builder()
-                .status(200)
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(body.into())
-                .unwrap()
-        }
-        Box::pin(_respond(self.0.clone()))
+        self.0.respond()
     }
 }
 

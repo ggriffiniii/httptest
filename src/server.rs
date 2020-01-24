@@ -243,7 +243,7 @@ impl ExpectationBuilder {
     /// ```
     /// # use httptest::{Expectation, mappers::any, responders::status_code};
     /// // exactly 2 requests
-    /// Expectation::matching(any()).times(2..=2).respond_with(status_code(200));
+    /// Expectation::matching(any()).times(2).respond_with(status_code(200));
     /// // at least 2 requests
     /// Expectation::matching(any()).times(2..).respond_with(status_code(200));
     /// // at most 2 requests
@@ -253,21 +253,12 @@ impl ExpectationBuilder {
     /// // equivalently
     /// Expectation::matching(any()).times(2..=5).respond_with(status_code(200));
     /// ```
-    pub fn times<R>(self, range: R) -> ExpectationBuilder
+    pub fn times<R>(self, times: R) -> ExpectationBuilder
     where
-        R: RangeBounds<usize>,
+        R: crate::into_times::IntoTimes,
     {
-        fn cloned_range(b: Bound<&usize>) -> Bound<usize> {
-            match b {
-                Bound::Included(b) => Bound::Included(*b),
-                Bound::Excluded(b) => Bound::Excluded(*b),
-                Bound::Unbounded => Bound::Unbounded,
-            }
-        }
-        let start_bound = cloned_range(range.start_bound());
-        let end_bound = cloned_range(range.end_bound());
         ExpectationBuilder {
-            times: (start_bound, end_bound),
+            times: times.into_times(),
             ..self
         }
     }

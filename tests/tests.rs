@@ -110,7 +110,7 @@ async fn test_cycle() {
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .times(4..=4)
+            .times(4)
             .respond_with(cycle![status_code(200), status_code(404),]),
     );
 

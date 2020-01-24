@@ -1,6 +1,6 @@
 [package]
 name = "httptest"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Glenn Griffin <ggriffiniii@gmail.com>"]
 edition = "2018"
 description = "HTTP testing facilities including a mock server"

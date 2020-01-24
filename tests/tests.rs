@@ -161,6 +161,29 @@ async fn test_url_encoded() {
 }
 
 #[tokio::test]
+async fn test_from_fn() {
+    let _ = pretty_env_logger::try_init();
+
+    let server = httptest::Server::run();
+    let delay = std::time::Duration::from_millis(100);
+    server.expect(Expectation::matching(any()).respond_with(from_fn(move || {
+        std::thread::sleep(delay);
+        status_code(200)
+    })));
+
+    // Issue the GET /foo?key=value to the server and verify it returns a 200 with an
+    // application/x-www-form-urlencoded body of key=value.
+    let client = hyper::Client::new();
+    let now = std::time::Instant::now();
+    let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
+    let elapsed = now.elapsed();
+    assert!(all_of![response::status_code(eq(200)),].matches(&resp));
+    assert!(elapsed >= delay);
+
+    // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
+}
+
+#[tokio::test]
 async fn test_readme() {
     use httptest::{mappers::*, responders::*, Expectation, Server};
     use serde_json::json;

@@ -17,7 +17,7 @@ no-dev-version = true
 [dependencies]
 hyper = "0.13"
 futures = "0.3"
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "0.2.5", features = ["macros", "blocking", "rt-threaded"] }
 crossbeam-channel = "0.4.0"
 http = "0.2"
 log = "0.4.8"

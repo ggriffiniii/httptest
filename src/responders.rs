@@ -126,6 +126,34 @@ where
     }
 }
 
+/// Respond with the response returned from the provided function.
+pub fn from_fn<F, B>(f: F) -> FnResponder<F, B>
+where
+    F: FnMut() -> B + Clone + Send + 'static,
+    B: Responder,
+{
+    FnResponder(f, std::marker::PhantomData)
+}
+/// The `FnResponder` responder returned by [from_fn()](fn.from_fn.html)
+pub struct FnResponder<F, B>(F, std::marker::PhantomData<B>);
+
+impl<F, B> fmt::Debug for FnResponder<F, B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("FnResponder").finish()
+    }
+}
+
+impl<F, B> Responder for FnResponder<F, B>
+where
+    F: FnMut() -> B + Clone + Send + 'static,
+    B: Responder,
+{
+    fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
+        let f = self.0.clone();
+        Box::pin(async move { tokio::task::block_in_place(f).respond().await })
+    }
+}
+
 /// Cycle through the provided list of responders.
 pub fn cycle(responders: Vec<Box<dyn Responder>>) -> impl Responder {
     if responders.is_empty() {
@@ -141,9 +169,9 @@ pub struct Cycle {
 }
 impl Responder for Cycle {
     fn respond(&mut self) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send>> {
-        let response = self.responders[self.idx].respond();
+        let idx = self.idx;
         self.idx = (self.idx + 1) % self.responders.len();
-        response
+        self.responders[idx].respond()
     }
 }
 

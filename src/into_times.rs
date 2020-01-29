@@ -1,4 +1,6 @@
-use std::ops::{Bound, RangeBounds, Range, RangeFrom, RangeFull, RangeInclusive, RangeToInclusive, RangeTo};
+use std::ops::{
+    Bound, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+};
 
 /// How many times is an expectation expected to occur.
 /// Implemented for usize and any range of usize values.
@@ -23,10 +25,13 @@ macro_rules! impl_into_times {
                         Bound::Unbounded => Bound::Unbounded,
                     }
                 }
-                (cloned_range(self.start_bound()), cloned_range(self.end_bound()))
+                (
+                    cloned_range(self.start_bound()),
+                    cloned_range(self.end_bound()),
+                )
             }
         }
-    }
+    };
 }
 
 impl_into_times!(Range<usize>);

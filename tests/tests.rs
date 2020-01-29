@@ -198,8 +198,7 @@ async fn test_readme() {
     // Configure the server to expect a single GET /foo request and respond
     // with a 200 status code.
     server.expect(
-        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
-            .respond_with(status_code(200)),
+        Expectation::matching(request::method_path("GET", "/foo")).respond_with(status_code(200)),
     );
     // Configure the server to also receive between 1 and 3 POST /bar requests
     // with a json body matching {'foo': 'bar'}, and respond with a json body

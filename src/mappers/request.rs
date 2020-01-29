@@ -102,6 +102,30 @@ where
     }
 }
 
+/// A convenience matcher for both method and path. Extracts a bolean true if the method and path both match.
+///
+/// `method_path(a, b) == all_of![method(a), path(b)]`
+pub fn method_path<M, P>(method: M, path: P) -> MethodPath<M, P> {
+    MethodPath { method, path }
+}
+/// The `MethodPath` mapper returned by [method_path()](fn.method_path.html)
+#[derive(Debug)]
+pub struct MethodPath<M, P> {
+    method: M,
+    path: P,
+}
+impl<M, P, B> Mapper<http::Request<B>> for MethodPath<M, P>
+where
+    M: Mapper<str, Out = bool>,
+    P: Mapper<str, Out = bool>,
+{
+    type Out = bool;
+
+    fn map(&mut self, input: &http::Request<B>) -> M::Out {
+        self.method.map(input.method().as_str()) && self.path.map(input.uri().path())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,5 +197,22 @@ mod tests {
             .body("my request body")
             .unwrap();
         assert!(body("my request body").map(&req));
+    }
+
+    #[test]
+    fn test_method_path() {
+        let req = http::Request::get("https://example.com/foo")
+            .body("")
+            .unwrap();
+        assert!(method_path("GET", "/foo").map(&req));
+        assert!(!method_path("POST", "/foo").map(&req));
+        assert!(!method_path("GET", "/").map(&req));
+
+        let req = http::Request::post("https://example.com/foobar")
+            .body("")
+            .unwrap();
+        assert!(method_path("POST", "/foobar").map(&req));
+        assert!(!method_path("GET", "/foobar").map(&req));
+        assert!(!method_path("POST", "/").map(&req));
     }
 }

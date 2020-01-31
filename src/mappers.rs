@@ -1,8 +1,7 @@
 //! Mapper implementations.
 //!
 //! This module contains mappers for composing a set of operations. The result
-//! of the composition usually results in a boolean. Any `Mapper` that results in a
-//! boolean value also implemens `Matcher`.
+//! of the composition usually results in a boolean.
 
 use std::borrow::Borrow;
 use std::fmt;
@@ -20,9 +19,6 @@ pub mod response;
 /// The core trait. Defines how an input value should be turned into an output
 /// value. This allows for a flexible pattern of composition where two or more
 /// mappers are chained together to form a readable and flexible manipulation.
-///
-/// There is a special case of a Mapper that outputs a bool that is called a
-/// Matcher.
 pub trait Mapper<IN>: Send + fmt::Debug
 where
     IN: ?Sized,
@@ -32,29 +28,6 @@ where
 
     /// Map an input to output.
     fn map(&mut self, input: &IN) -> Self::Out;
-}
-
-/// Matcher is just a special case of Mapper that returns a boolean. It simply
-/// provides the `matches` method rather than `map` as that reads a little
-/// better.
-///
-/// There is a blanket implementation for all Mappers that output bool values.
-/// You should never implement Matcher yourself, instead implement Mapper with a
-/// bool Out parameter.
-pub trait Matcher<IN>: Send + fmt::Debug
-where
-    IN: ?Sized,
-{
-    /// true if the input matches.
-    fn matches(&mut self, input: &IN) -> bool;
-}
-impl<T, IN> Matcher<IN> for T
-where
-    T: Mapper<IN, Out = bool>,
-{
-    fn matches(&mut self, input: &IN) -> bool {
-        self.map(input)
-    }
 }
 
 /// Always true.

@@ -1,4 +1,4 @@
-use crate::mappers::Matcher;
+use crate::mappers::Mapper;
 use crate::responders::Responder;
 use std::fmt;
 use std::future::Future;
@@ -169,14 +169,14 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
                 None => break None,
                 Some(expectation) => expectation,
             };
-            if expectation.matcher.matches(&req) {
+            if expectation.matcher.map(&req) {
                 log::debug!("found matcher: {:?}", &expectation.matcher);
                 expectation.hit_count += 1;
                 if !times_exceeded(expectation.times.1, expectation.hit_count) {
                     break Some(expectation.responder.respond());
                 } else {
                     break Some(Box::pin(times_error(
-                        &*expectation.matcher as &dyn Matcher<FullRequest>,
+                        &*expectation.matcher as &dyn Mapper<FullRequest, Out = bool>,
                         expectation.times,
                         expectation.hit_count,
                     )));
@@ -214,7 +214,7 @@ fn hit_count_is_valid(bounds: (Bound<usize>, Bound<usize>), hit_count: usize) ->
 /// An expectation to be asserted by the server.
 #[derive(Debug)]
 pub struct Expectation {
-    matcher: Box<dyn Matcher<FullRequest>>,
+    matcher: Box<dyn Mapper<FullRequest, Out = bool>>,
     times: (Bound<usize>, Bound<usize>),
     responder: Box<dyn Responder>,
     hit_count: usize,
@@ -222,7 +222,7 @@ pub struct Expectation {
 
 impl Expectation {
     /// What requests will this expectation match.
-    pub fn matching(matcher: impl Matcher<FullRequest> + 'static) -> ExpectationBuilder {
+    pub fn matching(matcher: impl Mapper<FullRequest, Out = bool> + 'static) -> ExpectationBuilder {
         ExpectationBuilder {
             matcher: Box::new(matcher),
             // expect exactly one request by default.
@@ -233,7 +233,7 @@ impl Expectation {
 
 /// Define expectations using a builder pattern.
 pub struct ExpectationBuilder {
-    matcher: Box<dyn Matcher<FullRequest>>,
+    matcher: Box<dyn Mapper<FullRequest, Out = bool>>,
     times: (Bound<usize>, Bound<usize>),
 }
 
@@ -310,7 +310,7 @@ impl Default for ServerStateInner {
 }
 
 fn times_error(
-    matcher: &dyn Matcher<FullRequest>,
+    matcher: &dyn Mapper<FullRequest, Out = bool>,
     times: (Bound<usize>, Bound<usize>),
     hit_count: usize,
 ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {

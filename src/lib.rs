@@ -1,5 +1,4 @@
 /*!
-
 # httptest
 
 Provide convenient mechanism for testing http clients against a locally
@@ -35,8 +34,8 @@ let client = hyper::Client::new();
 // Issue the GET /foo to the server.
 let resp = client.get(url).await.unwrap();
 
-// Use response matchers to assert the response has a 200 status code.
-assert!(response::status_code(eq(200)).matches(&resp));
+// assert the response has a 200 status code.
+assert!(resp.status().is_success());
 
 // on Drop the server will assert all expectations have been met and will
 // panic if not.
@@ -44,7 +43,6 @@ assert!(response::status_code(eq(200)).matches(&resp));
 ```
 
 # Server behavior
-
 
 Typically the server is started by calling
 [Server::run](struct.Server.html#method.run). It starts without any
@@ -106,13 +104,9 @@ over an input type, has an associated `Out` type, and defines a single method
 `map` that converts from a shared reference of the input type to the `Out`
 type.
 
-There's a specialized form of a Mapper where the `Out` type is a boolean.
-Any `Mapper` that outputs a boolean value is considered a Matcher and
-implements the [Matcher](mapper/trait.Matcher.html) trait as well. The
-Matcher trait simply provides a `matches` method.
-
-A request matcher is any `Matcher` that takes accepts a
-`http::Request<hyper::body::Bytes>` as input.
+A request matcher is any `Mapper` that accepts a
+`http::Request<hyper::body::Bytes>` as input, and maps that to a boolean. A
+true result indicates the request matches.
 
 With that understanding we can discuss how to easily define a request
 matcher. There are a variety of pre-defined mappers within the

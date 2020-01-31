@@ -24,7 +24,7 @@ async fn test_server() {
     // Issue the GET /foo to the server and verify it returns a 200.
     let client = hyper::Client::new();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(200)).map(&resp));
+    assert_eq!(200, resp.status().as_u16());
 
     // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
 }
@@ -63,11 +63,11 @@ async fn test_expectation_cardinality_exceeded() {
     // Issue the GET /foo to the server and verify it returns a 200.
     let client = hyper::Client::new();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(200)).map(&resp));
+    assert_eq!(200, resp.status().as_u16());
 
     // Issue a second GET /foo and verify it returns a 500 because the cardinality of the expectation has been exceeded.
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(500)).map(&resp));
+    assert!(resp.status().is_server_error());
 
     // Should panic on Server drop.
 }
@@ -93,12 +93,13 @@ async fn test_json() {
     // body matching my_data.
     let client = hyper::Client::new();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(all_of![
-        response::status_code(eq(200)),
-        response::headers(contains_entry(("content-type", "application/json"))),
-        response::body(json_decoded(eq(my_data))),
-    ]
-    .map(&resp));
+    assert_eq!(200, resp.status().as_u16());
+    let body_data = serde_json::from_slice::<serde_json::Value>(resp.body()).unwrap();
+    assert_eq!(my_data, body_data);
+    assert_eq!(
+        Some(&b"application/json"[..]),
+        resp.headers().get("content-type").map(|x| x.as_bytes())
+    );
 }
 
 #[tokio::test]
@@ -117,13 +118,13 @@ async fn test_cycle() {
     // Issue multiple GET /foo to the server and verify it alternates between 200 and 404 codes.
     let client = hyper::Client::new();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(200)).map(&resp));
+    assert_eq!(200, resp.status().as_u16());
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(404)).map(&resp));
+    assert_eq!(404, resp.status().as_u16());
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(200)).map(&resp));
+    assert_eq!(200, resp.status().as_u16());
     let resp = read_response_body(client.get(server.url("/foo"))).await;
-    assert!(response::status_code(eq(404)).map(&resp));
+    assert_eq!(404, resp.status().as_u16());
 }
 
 #[tokio::test]
@@ -147,15 +148,12 @@ async fn test_url_encoded() {
     // application/x-www-form-urlencoded body of key=value.
     let client = hyper::Client::new();
     let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
-    assert!(all_of![
-        response::status_code(eq(200)),
-        response::headers(contains_entry((
-            "content-type",
-            "application/x-www-form-urlencoded",
-        ))),
-        response::body(url_decoded(contains_entry(("key", "value")))),
-    ]
-    .map(&resp));
+    assert_eq!(200, resp.status().as_u16());
+    assert_eq!(
+        Some(&b"application/x-www-form-urlencoded"[..]),
+        resp.headers().get("content-type").map(|x| x.as_bytes())
+    );
+    assert_eq!("key=value", resp.body());
 
     // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
 }
@@ -177,7 +175,7 @@ async fn test_from_fn() {
     let now = std::time::Instant::now();
     let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
     let elapsed = now.elapsed();
-    assert!(all_of![response::status_code(eq(200)),].map(&resp));
+    assert_eq!(200, resp.status().as_u16());
     assert!(elapsed >= delay);
 
     // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
@@ -226,7 +224,7 @@ async fn test_readme() {
     // expected.
 
     // Assert the response was a 200.
-    assert!(response::status_code(eq(200)).map(&resp));
+    assert_eq!(200, resp.status().as_u16());
 
     // Issue a POST /bar with {'foo': 'bar'} json body.
     let post_req = http::Request::post(server.url("/bar"))
@@ -236,11 +234,11 @@ async fn test_readme() {
     // response matcher.
     let resp = read_response_body(client.request(post_req)).await;
     // Assert the response was a 200 with a json body of {'result': 'success'}
-    assert!(all_of![
-        response::status_code(eq(200)),
-        response::body(json_decoded(eq(json!({"result": "success"})))),
-    ]
-    .map(&resp));
+    assert_eq!(200, resp.status().as_u16());
+    assert_eq!(
+        json!({"result": "success"}),
+        serde_json::from_slice::<serde_json::Value>(resp.body()).unwrap()
+    );
 
     // on Drop the server will assert all expectations have been met and will
     // panic if not.

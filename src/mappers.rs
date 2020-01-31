@@ -14,7 +14,6 @@ pub use crate::all_of;
 pub use crate::any_of;
 
 pub mod request;
-pub mod response;
 
 /// The core trait. Defines how an input value should be turned into an output
 /// value. This allows for a flexible pattern of composition where two or more

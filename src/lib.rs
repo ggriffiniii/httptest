@@ -48,16 +48,17 @@ Typically the server is started by calling
 [Server::run](struct.Server.html#method.run). It starts without any
 expectations configured.
 
-Expectations are added by calling [Server::expect]. Every invocation of
-expect appends a new Expectation onto the list of expectations the server is
-expectating. Expectations are only removed from the server on Drop or when
+Expectations are added by calling
+[Server::expect](struct.Server.html#method.expect). Every invocation of
+expect appends a new expectation onto the list. Expectations are only removed
+from the server on Drop or when
 [Server::verify_and_clear](struct.Server.html#method.verify_and_clear) is
 invoked. This guarantees that all expectations are always verified.
 
-Expectations consist of a matcher that determines if a particular expectation
-matches a request received by the server, the number of times a request
-matching this expectation is expected to be received, and a responder that
-indicates how the server should respond to the request.
+Expectations consist of:
+* A matcher that determines which requests match this expectation
+* The number of times a request matching this expectation is expected to be received
+* A responder that indicates how the server should respond to the request.
 
 When the server receives a request it iterates over all expectations in the
 *reverse* order they have been added. When it reaches an expectation that
@@ -77,6 +78,65 @@ Clients can determine the address and port the server is reachable at using
 [Server::addr](struct.Server.html#method.addr), or the helper methods
 [Server::url](struct.Server.html#method.url) and
 [Server::url_str](struct.Server.html#method.url_str).
+
+## Server Pooling
+
+Typical usage would use [Server::run](struct.Server.html#method.run) early in
+each test case and have the Drop implementation at the end of the test assert
+all expectations were met. This runs a separate server for each test. Rust's
+test harness starts a separate thread for each test within a test-suite so
+the machine running the test would likely end up running a server for each
+#[test] function concurrently. For large test suites this could cause machine
+wide resources (like tcp ports) to become scarce. To address this you could
+use the --test-threads flag on the test-harness to limit the number of
+threads running, or alternatively you could use a global
+[ServerPool](struct.ServerPool.html) instance.
+
+The [ServerPool](struct.ServerPool.html) allows limiting the number of
+servers that can be running concurrently while still allowing test cases to
+function independently.
+
+### ServerPool example
+
+```
+# use httptest::ServerPool;
+// Create a server pool that will create at most 2 servers.
+static SERVER_POOL: ServerPool = ServerPool::new(2);
+
+#[test]
+fn test1() {
+    let server = SERVER_POOL.get_server();
+    server.Expect(Expectation::matching(any()).respond_with(status_code(200)));
+
+    // Send requests to server
+    // Server will assert expectations on drop.
+}
+
+#[test]
+fn test2() {
+    let server = SERVER_POOL.get_server();
+    server.Expect(Expectation::matching(any()).respond_with(status_code(200)));
+
+    // Send requests to server
+    // Server will assert expectations on drop.
+}
+
+#[test]
+fn test3() {
+    let server = SERVER_POOL.get_server();
+    server.Expect(Expectation::matching(any()).respond_with(status_code(200)));
+
+    // Send requests to server
+    // Server will assert expectations on drop.
+}
+```
+
+This is almost identical to tests without pooling, the only addition is
+creating a static ServerPool instance, and using `SERVER_POOL.get_server()`
+instead of `Server::run()`. This will effectively limit the amount of
+concurrency of the test suite to two tests at a time. The first two tests to execute
+`get_server()` will be handed servers without blocking, the 3rd test will block
+in `get_server()` until one of the first 2 tests complete.
 
 # Defining Expecations
 
@@ -158,17 +218,38 @@ number of requests expected.
 ```
 # use httptest::{Expectation, mappers::any, responders::status_code};
 // Expect exactly one request
-Expectation::matching(any()).respond_with(status_code(200));
+Expectation::matching(any())
+    .respond_with(status_code(200));
+
+// Expect exactly two requests
+Expectation::matching(any())
+    .times(2)
+    .respond_with(status_code(200));
+
 // Expect at least 2 requests
-Expectation::matching(any()).times(2..).respond_with(status_code(200));
+Expectation::matching(any())
+    .times(2..)
+    .respond_with(status_code(200));
+
 // Expect at most 2 requests
-Expectation::matching(any()).times(..2).respond_with(status_code(200));
+Expectation::matching(any())
+    .times(..2)
+    .respond_with(status_code(200));
+
 // Expect between 2 and 5 requests
-Expectation::matching(any()).times(2..6).respond_with(status_code(200));
+Expectation::matching(any())
+    .times(2..6)
+    .respond_with(status_code(200));
+
 // Expect between 2 and 5 requests
-Expectation::matching(any()).times(2..=5).respond_with(status_code(200));
+Expectation::matching(any())
+    .times(2..=5)
+    .respond_with(status_code(200));
+
 // Expect any number of requests.
-Expectation::matching(any()).times(..).respond_with(status_code(200));
+Expectation::matching(any())
+    .times(..)
+    .respond_with(status_code(200));
 ```
 
 The server will respond to any requests that violate the times restriction with
@@ -182,7 +263,7 @@ addition to the predefined responders you can provide any
 `http::Response` with a body that can be cloned or implement your own
 Responder.
 
-## Responder example
+### Responder example
 
 ```
 use httptest::responders::*;
@@ -190,14 +271,23 @@ use httptest::responders::*;
 // respond with a successful 200 status code.
 status_code(200);
 
-// respond with a 404 page not found.
-status_code(404);
+// respond with a 404 page not found and a custom header.
+status_code(404).append_header("X-My-Hdr", "my hdr val");
 
-// respond with a json encoded body.
+// respond with a successful 200 status code and body.
+status_code(200).body("my body");
+
+// respond with a json encoded body and custom header.
 json_encoded(serde_json::json!({
     "my_key": 100,
     "my_key2": [1, 2, "foo", 99],
-}));
+})).append_header("X-My-Hdr", "my hdr val");
+
+// respond with a url encoded body (foo=bar&baz=bat)
+url_encoded(&[
+    ("foo", "bar"),
+    ("baz", "bat")
+]);
 
 // alternate between responding with a 200 and a 404.
 cycle![

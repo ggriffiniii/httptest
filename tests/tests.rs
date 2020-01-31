@@ -133,7 +133,6 @@ async fn test_url_encoded() {
 
     // Setup a server to expect a single GET /foo request and respond with a
     // json response.
-    let my_data = vec![("key", "value")];
     let server = httptest::Server::run();
     server.expect(
         Expectation::matching(all_of![
@@ -141,7 +140,7 @@ async fn test_url_encoded() {
             request::path("/foo"),
             request::query(url_decoded(contains_entry(("key", "value")))),
         ])
-        .respond_with(url_encoded(my_data.clone())),
+        .respond_with(url_encoded(&[("key", "value"), ("k", "v")])),
     );
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200 with an
@@ -153,7 +152,7 @@ async fn test_url_encoded() {
         Some(&b"application/x-www-form-urlencoded"[..]),
         resp.headers().get("content-type").map(|x| x.as_bytes())
     );
-    assert_eq!("key=value", resp.body());
+    assert_eq!("key=value&k=v", resp.body());
 
     // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
 }

@@ -163,7 +163,7 @@ async fn test_from_fn() {
 
     let server = httptest::Server::run();
     let delay = std::time::Duration::from_millis(100);
-    server.expect(Expectation::matching(any()).respond_with(from_fn(move || {
+    server.expect(Expectation::matching(any()).respond_with(from_fn(move |_| {
         std::thread::sleep(delay);
         status_code(200)
     })));

@@ -163,31 +163,26 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
         let mut state = state.lock();
         // Iterate over expectations in reverse order. Expectations are
         // evaluated most recently added first.
-        let mut iter = state.expected.iter_mut().rev();
-        let response_future = loop {
-            let expectation = match iter.next() {
-                None => break None,
-                Some(expectation) => expectation,
-            };
-            if expectation.matcher.map(&req) {
+        match state.find_expectation(&req) {
+            Some(expectation) => {
                 log::debug!("found matcher: {:?}", &expectation.matcher);
                 expectation.hit_count += 1;
                 if !times_exceeded(expectation.times.1, expectation.hit_count) {
-                    break Some(expectation.responder.respond());
+                    Some(expectation.responder.respond(&req))
                 } else {
-                    break Some(Box::pin(times_error(
+                    Some(times_error(
                         &*expectation.matcher as &dyn Mapper<FullRequest, Out = bool>,
                         expectation.times,
                         expectation.hit_count,
-                    )));
+                    ))
                 }
             }
-        };
-        if response_future.is_none() {
-            log::debug!("no matcher found for request: {:?}", req);
-            state.unexpected_requests.push(req);
+            None => {
+                log::debug!("no matcher found for request: {:?}", req);
+                state.unexpected_requests.push(req);
+                None
+            }
         }
-        response_future
     };
     if let Some(f) = response_future {
         f.await
@@ -298,6 +293,17 @@ impl Default for ServerState {
 struct ServerStateInner {
     unexpected_requests: Vec<FullRequest>,
     expected: Vec<Expectation>,
+}
+
+impl ServerStateInner {
+    fn find_expectation(&mut self, req: &FullRequest) -> Option<&mut Expectation> {
+        for expectation in self.expected.iter_mut().rev() {
+            if expectation.matcher.map(req) {
+                return Some(expectation);
+            }
+        }
+        None
+    }
 }
 
 impl Default for ServerStateInner {

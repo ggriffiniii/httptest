@@ -15,6 +15,7 @@ keywords = ["http", "test", "testing", "mock", "fake"]
 no-dev-version = true
 
 [dependencies]
+bytes = "0.5"
 hyper = "0.13"
 futures = "0.3"
 tokio = { version = "0.2.5", features = ["macros", "blocking", "rt-threaded"] }

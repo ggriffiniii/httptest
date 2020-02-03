@@ -30,11 +30,7 @@ async fn test_readme() {
     // Configure the server to expect a single GET /foo request and respond
     // with a 200 status code.
     server.expect(
-        Expectation::matching(all_of![
-            request::method("GET"),
-            request::path("/foo")
-        ])
-        .respond_with(status_code(200)),
+        Expectation::matching(request::method_path("GET", "/foo")).respond_with(status_code(200)),
     );
     // Configure the server to also receive between 1 and 3 POST /bar requests
     // with a json body matching {'foo': 'bar'}, and respond with a json body
@@ -62,7 +58,7 @@ async fn test_readme() {
     // expected.
 
     // Assert the response was a 200.
-    assert!(response::status_code(eq(200)).matches(&resp));
+    assert_eq!(200, resp.status().as_u16());
 
     // Issue a POST /bar with {'foo': 'bar'} json body.
     let post_req = http::Request::post(server.url("/bar"))
@@ -72,11 +68,11 @@ async fn test_readme() {
     // response matcher.
     let resp = read_response_body(client.request(post_req)).await;
     // Assert the response was a 200 with a json body of {'result': 'success'}
-    assert!(all_of![
-        response::status_code(eq(200)),
-        response::body(json_decoded(eq(json!({"result": "success"})))),
-    ]
-    .matches(&resp));
+    assert_eq!(200, resp.status().as_u16());
+    assert_eq!(
+        json!({"result": "success"}),
+        serde_json::from_slice::<serde_json::Value>(resp.body()).unwrap()
+    );
 
     // on Drop the server will assert all expectations have been met and will
     // panic if not.

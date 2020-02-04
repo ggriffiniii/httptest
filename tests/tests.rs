@@ -181,6 +181,50 @@ async fn test_from_fn() {
 }
 
 #[tokio::test]
+async fn test_custom_json() {
+    use httptest::{mappers::*, responders::*, Expectation, Server};
+    use serde_json::json;
+    let _ = pretty_env_logger::try_init();
+
+    let server = Server::run();
+
+    #[derive(serde::Deserialize, Debug, PartialEq)]
+    struct PostBody {
+        msg: Option<String>,
+    }
+
+    server.expect(
+        Expectation::matching(all_of![
+            request::method("POST"),
+            request::path("/bar"),
+            request::body(json_decoded(|b: &PostBody| { b.msg.is_some() }))
+        ])
+        .respond_with(json_encoded(json!({"result": "success"}))),
+    );
+
+    // Now test your http client against the server.
+    let client = hyper::Client::new();
+    // Issue the GET /foo to the server.
+
+    // Issue a POST /bar with {'foo': 'bar'} json body.
+    let post_req = http::Request::post(server.url("/bar"))
+        .body(json!({"msg": "foo"}).to_string().into())
+        .unwrap();
+    // Read the entire response body into a Vec<u8> to allow using the body
+    // response matcher.
+    let resp = read_response_body(client.request(post_req)).await;
+    // Assert the response was a 200 with a json body of {'result': 'success'}
+    assert_eq!(200, resp.status().as_u16());
+    assert_eq!(
+        json!({"result": "success"}),
+        serde_json::from_slice::<serde_json::Value>(resp.body()).unwrap()
+    );
+
+    // on Drop the server will assert all expectations have been met and will
+    // panic if not.
+}
+
+#[tokio::test]
 async fn test_readme() {
     use httptest::{mappers::*, responders::*, Expectation, Server};
     use serde_json::json;

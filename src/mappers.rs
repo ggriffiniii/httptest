@@ -366,33 +366,45 @@ where
     }
 }
 
-/// json decode the input and pass the resulting serde_json::Value to the next
-/// mapper.
+/// json decode the input and pass the resulting value to the inner mapper. If
+/// the input cannot be decoded a false value is returned. The inner mapper is
+/// required to return a bool value.
 ///
-/// If the input can't be decoded a serde_json::Value::Null is passed to the next
-/// mapper.
-pub fn json_decoded<M>(inner: M) -> JsonDecoded<M> {
-    JsonDecoded(inner)
+/// This can be used with Fn mappers to allow for flexible matching of json content.
+/// The following example matches whenever the body of the request contains a
+/// json list of strings of length 3.
+/// ```rust
+/// use httptest::mappers::*;
+/// request::body(json_decoded(|b: &Vec<String>| b.len() == 3));
+/// ```
+pub fn json_decoded<T, M>(inner: M) -> JsonDecoded<T, M>
+where
+    M: Mapper<T, Out = bool>,
+{
+    JsonDecoded(PhantomData, inner)
 }
 /// The `JsonDecoded` mapper returned by [json_decoded()](fn.json_decoded.html)
 #[derive(Debug)]
-pub struct JsonDecoded<M>(M);
-impl<IN, M> Mapper<IN> for JsonDecoded<M>
+pub struct JsonDecoded<T, M>(PhantomData<T>, M);
+impl<IN, T, M> Mapper<IN> for JsonDecoded<T, M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    M: Mapper<serde_json::Value>,
+    M: Mapper<T, Out = bool>,
+    T: serde::de::DeserializeOwned + Send,
 {
-    type Out = M::Out;
+    type Out = bool;
 
-    fn map(&mut self, input: &IN) -> M::Out {
-        let json_value: serde_json::Value =
-            serde_json::from_slice(input.as_ref()).unwrap_or(serde_json::Value::Null);
-        self.0.map(&json_value)
+    fn map(&mut self, input: &IN) -> bool {
+        let value: T = match serde_json::from_slice(input.as_ref()) {
+            Ok(value) => value,
+            Err(_) => return false,
+        };
+        self.1.map(&value)
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("JsonDecoded")
-            .field(&mapper_name(&self.0))
+            .field(&mapper_name(&self.1))
             .finish()
     }
 }

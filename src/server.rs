@@ -40,7 +40,6 @@ impl Server {
                 async move {
                     let state = state.clone();
                     Ok::<_, Error>(service_fn({
-                        let state = state.clone();
                         move |req: http::Request<hyper::Body>| {
                             let state = state.clone();
                             async move {

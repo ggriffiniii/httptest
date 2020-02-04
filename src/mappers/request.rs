@@ -1,6 +1,7 @@
 //! Mappers that extract information from HTTP requests.
 
-use super::{Mapper, KV};
+use super::{mapper_name, Mapper, KV};
+use std::fmt;
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
 pub fn method<M>(inner: M) -> Method<M> {
@@ -17,6 +18,12 @@ where
 
     fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(input.method().as_str())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Method")
+            .field(&mapper_name(&self.0))
+            .finish()
     }
 }
 
@@ -36,6 +43,10 @@ where
     fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(input.uri().path())
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Path").field(&mapper_name(&self.0)).finish()
+    }
 }
 
 /// Extract the query from the HTTP request and pass it to the next mapper.
@@ -53,6 +64,10 @@ where
 
     fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(input.uri().query().unwrap_or(""))
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Query").field(&mapper_name(&self.0)).finish()
     }
 }
 
@@ -81,6 +96,12 @@ where
             .collect();
         self.0.map(&headers)
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Headers")
+            .field(&mapper_name(&self.0))
+            .finish()
+    }
 }
 
 /// Extract the body from the HTTP request and pass it to the next mapper.
@@ -99,6 +120,10 @@ where
 
     fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.0.map(&input.body().to_owned())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Body").field(&mapper_name(&self.0)).finish()
     }
 }
 
@@ -123,6 +148,13 @@ where
 
     fn map(&mut self, input: &http::Request<B>) -> M::Out {
         self.method.map(input.method().as_str()) && self.path.map(input.uri().path())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("MethodPath")
+            .field("method", &mapper_name(&self.method))
+            .field("path", &mapper_name(&self.path))
+            .finish()
     }
 }
 

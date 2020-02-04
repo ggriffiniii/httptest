@@ -5,6 +5,7 @@
 
 use std::borrow::Borrow;
 use std::fmt;
+use std::marker::PhantomData;
 
 // import the any_of and all_of macros from crate root so they are accessible if
 // people glob import this module.
@@ -18,7 +19,7 @@ pub mod request;
 /// The core trait. Defines how an input value should be turned into an output
 /// value. This allows for a flexible pattern of composition where two or more
 /// mappers are chained together to form a readable and flexible manipulation.
-pub trait Mapper<IN>: Send + fmt::Debug
+pub trait Mapper<IN>: Send
 where
     IN: ?Sized,
 {
@@ -27,6 +28,33 @@ where
 
     /// Map an input to output.
     fn map(&mut self, input: &IN) -> Self::Out;
+
+    /// formatted name of the mapper. This is used for debugging purposes and
+    /// should typically look like a fmt::Debug representation.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;
+}
+
+/// convenience function to print the Mapper::fmt representation of a mapper.
+/// Returns an object with a fmt::Debug matching the Mapper::fmt.
+pub(crate) fn mapper_name<M, IN>(mapper: &M) -> MapperName<'_, M, IN>
+where
+    M: ?Sized,
+    IN: ?Sized,
+{
+    MapperName(mapper, PhantomData)
+}
+pub(crate) struct MapperName<'a, M, IN>(&'a M, PhantomData<&'a IN>)
+where
+    M: ?Sized,
+    IN: ?Sized;
+impl<'a, M, IN> fmt::Debug for MapperName<'a, M, IN>
+where
+    M: Mapper<IN> + ?Sized,
+    IN: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// Always true.
@@ -44,6 +72,10 @@ where
 
     fn map(&mut self, _input: &IN) -> bool {
         true
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
     }
 }
 
@@ -65,6 +97,10 @@ where
     fn map(&mut self, input: &IN) -> bool {
         self.0.borrow() == input
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
 }
 impl<T> fmt::Debug for Eq<T>
 where
@@ -85,6 +121,10 @@ where
     fn map(&mut self, input: &IN) -> bool {
         self.as_bytes() == input.as_ref()
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
 }
 
 /// A String is an implicit Eq mapper.
@@ -97,6 +137,10 @@ where
     fn map(&mut self, input: &IN) -> bool {
         self.as_bytes() == input.as_ref()
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
 }
 
 /// A &[u8] is an implicit Eq mapper.
@@ -108,6 +152,10 @@ where
 
     fn map(&mut self, input: &IN) -> bool {
         *self == input.as_ref()
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
     }
 }
 
@@ -156,6 +204,10 @@ where
     fn map(&mut self, input: &IN) -> bool {
         self.0.is_match(input.as_ref())
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
 }
 
 /// invert the result of the inner mapper.
@@ -174,13 +226,9 @@ where
     fn map(&mut self, input: &IN) -> bool {
         !self.0.map(input)
     }
-}
-impl<M> fmt::Debug for Not<M>
-where
-    M: fmt::Debug,
-{
+
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Not({:?})", &self.0)
+        f.debug_tuple("Not").field(&mapper_name(&self.0)).finish()
     }
 }
 
@@ -188,24 +236,39 @@ where
 /// convenient usage.
 pub fn all_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AllOf<IN>
 where
-    IN: fmt::Debug + ?Sized,
+    IN: ?Sized,
 {
     AllOf(inner)
 }
 
 /// The `AllOf` mapper returned by [all_of()](fn.all_of.html)
-#[derive(Debug)]
 pub struct AllOf<IN>(Vec<Box<dyn Mapper<IN, Out = bool>>>)
 where
     IN: ?Sized;
 impl<IN> Mapper<IN> for AllOf<IN>
 where
-    IN: fmt::Debug + ?Sized,
+    IN: ?Sized,
 {
     type Out = bool;
 
     fn map(&mut self, input: &IN) -> bool {
         self.0.iter_mut().all(|maper| maper.map(input))
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
+}
+
+impl<IN> fmt::Debug for AllOf<IN>
+where
+    IN: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("AllOf")?;
+        f.debug_list()
+            .entries(self.0.iter().map(|x| mapper_name(&**x)))
+            .finish()
     }
 }
 
@@ -213,23 +276,38 @@ where
 /// for convenient usage.
 pub fn any_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AnyOf<IN>
 where
-    IN: fmt::Debug + ?Sized,
+    IN: ?Sized,
 {
     AnyOf(inner)
 }
 /// The `AnyOf` mapper returned by [any_of()](fn.any_of.html)
-#[derive(Debug)]
 pub struct AnyOf<IN>(Vec<Box<dyn Mapper<IN, Out = bool>>>)
 where
     IN: ?Sized;
 impl<IN> Mapper<IN> for AnyOf<IN>
 where
-    IN: fmt::Debug + ?Sized,
+    IN: ?Sized,
 {
     type Out = bool;
 
     fn map(&mut self, input: &IN) -> bool {
         self.0.iter_mut().any(|maper| maper.map(input))
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
+}
+
+impl<IN> fmt::Debug for AnyOf<IN>
+where
+    IN: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("AnyOf")?;
+        f.debug_list()
+            .entries(self.0.iter().map(|x| mapper_name(&**x)))
+            .finish()
     }
 }
 
@@ -280,6 +358,12 @@ where
             .collect();
         self.0.map(&decoded)
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("UrlDecoded")
+            .field(&mapper_name(&self.0))
+            .finish()
+    }
 }
 
 /// json decode the input and pass the resulting serde_json::Value to the next
@@ -305,6 +389,12 @@ where
             serde_json::from_slice(input.as_ref()).unwrap_or(serde_json::Value::Null);
         self.0.map(&json_value)
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("JsonDecoded")
+            .field(&mapper_name(&self.0))
+            .finish()
+    }
 }
 
 /// lowercase the input and pass it to the next mapper.
@@ -325,27 +415,27 @@ where
         use bstr::ByteSlice;
         self.0.map(&input.as_ref().to_lowercase())
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Lowercase")
+            .field(&mapper_name(&self.0))
+            .finish()
+    }
 }
 
-/// pass the input to the provided `Fn(T) -> bool` and return the result.
-pub fn map_fn<F>(f: F) -> MapFn<F> {
-    MapFn(f)
-}
-/// The `MapFn` mapper returned by [map_fn()](fn.map_fn.html)
-pub struct MapFn<F>(F);
-impl<IN, F> Mapper<IN> for MapFn<F>
+// Fn(T) -> bool implements Mapper<T>
+impl<IN, F> Mapper<IN> for F
 where
     F: Fn(&IN) -> bool + Send,
 {
     type Out = bool;
 
     fn map(&mut self, input: &IN) -> bool {
-        self.0(input)
+        self(input)
     }
-}
-impl<F> fmt::Debug for MapFn<F> {
+
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MapFn")
+        write!(f, "fn(&{}) -> bool", std::any::type_name::<IN>())
     }
 }
 
@@ -371,6 +461,12 @@ where
         }
         false
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("ContainsEntry")
+            .field(&mapper_name(&self.0))
+            .finish()
+    }
 }
 
 /// extract the key from a key-value pair.
@@ -390,6 +486,10 @@ where
 
     fn map(&mut self, input: &KV<K, V>) -> M::Out {
         self.0.map(input.k.borrow())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Key").field(&mapper_name(&self.0)).finish()
     }
 }
 
@@ -411,6 +511,10 @@ where
     fn map(&mut self, input: &KV<K, V>) -> M::Out {
         self.0.map(input.v.borrow())
     }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Value").field(&mapper_name(&self.0)).finish()
+    }
 }
 
 impl<K, V, KMapper, VMapper> Mapper<KV<K, V>> for (KMapper, VMapper)
@@ -424,6 +528,13 @@ where
 
     fn map(&mut self, input: &KV<K, V>) -> bool {
         self.0.map(input.k.borrow()) && self.1.map(input.v.borrow())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("")
+            .field(&mapper_name(&self.0))
+            .field(&mapper_name(&self.1))
+            .finish()
     }
 }
 
@@ -447,8 +558,19 @@ where
 
     fn map(&mut self, input: &IN) -> M::Out {
         let output = self.0.map(input);
-        log::debug!("{:?}.map({:?}) == {:?}", self.0, input, output);
+        log::debug!(
+            "{:?}.map({:?}) == {:?}",
+            mapper_name(&self.0),
+            input,
+            output
+        );
         output
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Inspect")
+            .field(&mapper_name(&self.0))
+            .finish()
     }
 }
 
@@ -560,7 +682,7 @@ mod tests {
 
     #[test]
     fn test_fn_mapper() {
-        let mut c = map_fn(|input: &u64| input % 2 == 0);
+        let mut c = |input: &u64| input % 2 == 0;
         assert_eq!(true, c.map(&6));
         assert_eq!(true, c.map(&20));
         assert_eq!(true, c.map(&0));

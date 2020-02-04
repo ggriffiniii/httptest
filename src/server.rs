@@ -229,7 +229,6 @@ impl fmt::Debug for Expectation {
         f.debug_struct("Expectation")
             .field("matcher", &mapper_name(&*self.matcher))
             .field("times", &self.times)
-            .field("responder", &self.responder)
             .field("hit_count", &self.hit_count)
             .finish()
     }

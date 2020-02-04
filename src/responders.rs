@@ -12,7 +12,7 @@ use std::pin::Pin;
 pub use crate::cycle;
 
 /// Respond with an HTTP response.
-pub trait Responder: Send + fmt::Debug {
+pub trait Responder: Send {
     /// Return a future that outputs an HTTP response.
     fn respond<'a>(
         &mut self,
@@ -136,33 +136,17 @@ where
 }
 
 /// Respond with the response returned from the provided function.
-pub fn from_fn<F, B>(f: F) -> FnResponder<F, B>
+impl<F, B> Responder for F
 where
-    F: FnMut(&http::Request<bytes::Bytes>) -> B + Clone + Send + 'static,
-    B: Responder,
-{
-    FnResponder(f, std::marker::PhantomData)
-}
-/// The `FnResponder` responder returned by [from_fn()](fn.from_fn.html)
-pub struct FnResponder<F, B>(F, std::marker::PhantomData<B>);
-
-impl<F, B> fmt::Debug for FnResponder<F, B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("FnResponder").finish()
-    }
-}
-
-impl<F, B> Responder for FnResponder<F, B>
-where
-    F: FnMut(&http::Request<bytes::Bytes>) -> B + Clone + Send + 'static,
+    F: FnMut() -> B + Clone + Send + 'static,
     B: Responder,
 {
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,
     ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
-        let mut f = self.0.clone();
-        Box::pin(async move { tokio::task::block_in_place(|| f(req)).respond(req).await })
+        let mut f = self.clone();
+        Box::pin(async move { tokio::task::block_in_place(|| f()).respond(req).await })
     }
 }
 
@@ -174,7 +158,6 @@ pub fn cycle(responders: Vec<Box<dyn Responder>>) -> impl Responder {
     Cycle { idx: 0, responders }
 }
 /// The `Cycle` responder returned by [cycle()](fn.cycle.html)
-#[derive(Debug)]
 pub struct Cycle {
     idx: usize,
     responders: Vec<Box<dyn Responder>>,

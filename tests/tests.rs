@@ -158,15 +158,15 @@ async fn test_url_encoded() {
 }
 
 #[tokio::test]
-async fn test_from_fn() {
+async fn test_respond_with_fn() {
     let _ = pretty_env_logger::try_init();
 
     let server = httptest::Server::run();
     let delay = std::time::Duration::from_millis(100);
-    server.expect(Expectation::matching(any()).respond_with(from_fn(move |_| {
+    server.expect(Expectation::matching(any()).respond_with(move || {
         std::thread::sleep(delay);
         status_code(200)
-    })));
+    }));
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200 with an
     // application/x-www-form-urlencoded body of key=value.

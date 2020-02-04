@@ -19,10 +19,7 @@ let server = Server::run();
 // Configure the server to expect a single GET /foo request and respond
 // with a 200 status code.
 server.expect(
-    Expectation::matching(all_of![
-        request::method("GET"),
-        request::path("/foo")
-    ])
+    Expectation::matching(request::method_path("GET", "/foo"))
     .respond_with(status_code(200)),
 );
 

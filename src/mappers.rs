@@ -552,6 +552,43 @@ where
     }
 }
 
+/// extract the length of the input.
+pub fn len<M>(inner: M) -> Len<M> {
+    Len(inner)
+}
+/// The `Len` mapper returned by [len()](fn.len.html)
+#[derive(Debug)]
+pub struct Len<M>(M);
+impl<M, T> Mapper<[T]> for Len<M>
+where
+    M: Mapper<usize>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &[T]) -> M::Out {
+        self.0.map(&input.len())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Len").field(&mapper_name(&self.0)).finish()
+    }
+}
+
+impl<M> Mapper<str> for Len<M>
+where
+    M: Mapper<usize>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &str) -> M::Out {
+        self.0.map(&input.len())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Len").field(&mapper_name(&self.0)).finish()
+    }
+}
+
 /// inspect the input and pass it to the next mapper.
 ///
 /// This logs the value as it passes it to the next mapper unchanged. Can be
@@ -731,6 +768,26 @@ mod tests {
         assert_eq!(true, ("key1", "value1").map(&kv));
         assert_eq!(false, ("key1", "value2").map(&kv));
         assert_eq!(false, ("key2", "value1").map(&kv));
+    }
+
+    #[test]
+    fn test_len() {
+        let mut c = len(eq(3));
+        assert_eq!(true, c.map("foo"));
+        assert_eq!(false, c.map("foobar"));
+        assert_eq!(true, c.map(&b"foo"[..]));
+        assert_eq!(false, c.map(&b"foobar"[..]));
+    }
+
+    #[test]
+    fn test_fn() {
+        let mut c = len(|&len: &usize| len <= 3);
+        assert_eq!(true, c.map("f"));
+        assert_eq!(true, c.map("fo"));
+        assert_eq!(true, c.map("foo"));
+        assert_eq!(false, c.map("foob"));
+        assert_eq!(false, c.map("fooba"));
+        assert_eq!(false, c.map("foobar"));
     }
 
     #[test]

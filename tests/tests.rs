@@ -138,7 +138,7 @@ async fn test_url_encoded() {
         Expectation::matching(all_of![
             request::method("GET"),
             request::path("/foo"),
-            request::query(url_decoded(contains_entry(("key", "value")))),
+            request::query(url_decoded(contains(("key", "value")))),
         ])
         .respond_with(url_encoded(&[("key", "value"), ("k", "v")])),
     );

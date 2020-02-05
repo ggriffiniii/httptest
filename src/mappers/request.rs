@@ -203,8 +203,8 @@ mod tests {
     #[test]
     fn test_headers() {
         let expected = vec![
-            kv("host", &b"example.com"[..]),
-            kv("content-length", b"101"),
+            KV::new("host", &b"example.com"[..]),
+            KV::new("content-length", b"101"),
         ];
         let mut req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")

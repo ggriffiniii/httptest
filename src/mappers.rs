@@ -325,15 +325,17 @@ where
     pub v: V::Owned,
 }
 
-/// Create a KV from the provided key-value pair.
-pub fn kv<K, V>(k: &K, v: &V) -> KV<K, V>
+impl<K, V> KV<K, V>
 where
     K: ToOwned + ?Sized,
     V: ToOwned + ?Sized,
 {
-    KV {
-        k: k.to_owned(),
-        v: v.to_owned(),
+    /// Create a new KV. This will clone the provided k and v.
+    pub fn new(k: &K, v: &V) -> Self {
+        KV {
+            k: k.to_owned(),
+            v: v.to_owned(),
+        }
     }
 }
 
@@ -451,31 +453,31 @@ where
     }
 }
 
-/// true if the provided mapper returns true for any of the elements in the
-/// sequence.
-pub fn contains_entry<M>(inner: M) -> ContainsEntry<M> {
-    ContainsEntry(inner)
+/// true if any input element matches the provided mapper.
+///
+/// This works on slices of elements. Each element is handed to the provided
+/// mapper until the mapper returns true for one, false if no elements evaulate
+/// to true.
+///
+/// Look at [matches()](fn.matches.html) if substring matching is what want.
+pub fn contains<M>(inner: M) -> Contains<M> {
+    Contains(inner)
 }
-/// The `ContainsEntry` mapper returned by [contains_entry()](fn.contains_entry.html)
+/// The `Contains` mapper returned by [contains()](fn.contains.html)
 #[derive(Debug)]
-pub struct ContainsEntry<M>(M);
-impl<M, E> Mapper<[E]> for ContainsEntry<M>
+pub struct Contains<M>(M);
+impl<M, E> Mapper<[E]> for Contains<M>
 where
     M: Mapper<E, Out = bool>,
 {
     type Out = bool;
 
     fn map(&mut self, input: &[E]) -> bool {
-        for elem in input {
-            if self.0.map(elem) {
-                return true;
-            }
-        }
-        false
+        input.iter().any(|x| self.0.map(x))
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("ContainsEntry")
+        f.debug_tuple("Contains")
             .field(&mapper_name(&self.0))
             .finish()
     }
@@ -663,7 +665,7 @@ mod tests {
 
     #[test]
     fn test_url_decoded() {
-        let expected = vec![kv("key 1", "value 1"), kv("key2", "")];
+        let expected = vec![KV::new("key 1", "value 1"), KV::new("key2", "")];
         let mut c = request::query(url_decoded(eq(expected)));
         let req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")
@@ -702,29 +704,29 @@ mod tests {
     }
 
     #[test]
-    fn test_contains_entry() {
-        let mut c = contains_entry(eq(100));
+    fn test_contains() {
+        let mut c = contains(eq(100));
         assert_eq!(true, c.map(vec![100, 200, 300].as_slice()));
         assert_eq!(false, c.map(vec![99, 200, 300].as_slice()));
     }
 
     #[test]
     fn test_key() {
-        let kv = kv("key1", "value1");
+        let kv = KV::new("key1", "value1");
         assert_eq!(true, key("key1").map(&kv));
         assert_eq!(false, key("key2").map(&kv));
     }
 
     #[test]
     fn test_value() {
-        let kv = kv("key1", "value1");
+        let kv = KV::new("key1", "value1");
         assert_eq!(true, value("value1").map(&kv));
         assert_eq!(false, value("value2").map(&kv));
     }
 
     #[test]
     fn test_tuple() {
-        let kv = kv("key1", "value1");
+        let kv = KV::new("key1", "value1");
         assert_eq!(true, ("key1", any()).map(&kv));
         assert_eq!(true, ("key1", "value1").map(&kv));
         assert_eq!(false, ("key1", "value2").map(&kv));

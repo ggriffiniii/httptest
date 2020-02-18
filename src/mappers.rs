@@ -456,7 +456,7 @@ where
 /// true if any input element matches the provided mapper.
 ///
 /// This works on slices of elements. Each element is handed to the provided
-/// mapper until the mapper returns true for one, false if no elements evaulate
+/// mapper until the mapper returns true for one, false if no elements evaluate
 /// to true.
 ///
 /// Look at [matches()](fn.matches.html) if substring matching is what want.

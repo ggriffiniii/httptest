@@ -111,15 +111,59 @@ pub fn body<M>(inner: M) -> Body<M> {
 /// The `Body` mapper returned by [body()](fn.body.html)
 #[derive(Debug)]
 pub struct Body<M>(M);
-impl<M, B> Mapper<http::Request<B>> for Body<M>
+impl<M> Mapper<http::Request<&str>> for Body<M>
 where
-    B: ToOwned,
-    M: Mapper<B::Owned>,
+    M: Mapper<str>,
 {
     type Out = M::Out;
 
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        self.0.map(&input.body().to_owned())
+    fn map(&mut self, input: &http::Request<&str>) -> M::Out {
+        self.0.map(*input.body())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Body").field(&mapper_name(&self.0)).finish()
+    }
+}
+
+impl<M> Mapper<http::Request<&[u8]>> for Body<M>
+where
+    M: Mapper<[u8]>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &http::Request<&[u8]>) -> M::Out {
+        self.0.map(*input.body())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Body").field(&mapper_name(&self.0)).finish()
+    }
+}
+
+impl<M> Mapper<http::Request<Vec<u8>>> for Body<M>
+where
+    M: Mapper<[u8]>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &http::Request<Vec<u8>>) -> M::Out {
+        self.0.map(input.body())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Body").field(&mapper_name(&self.0)).finish()
+    }
+}
+
+impl<M> Mapper<http::Request<hyper::body::Bytes>> for Body<M>
+where
+    M: Mapper<[u8]>,
+{
+    type Out = M::Out;
+
+    fn map(&mut self, input: &http::Request<hyper::body::Bytes>) -> M::Out {
+        self.0.map(input.body().as_ref())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -777,6 +777,9 @@ mod tests {
         assert_eq!(false, c.map("foobar"));
         assert_eq!(true, c.map(&b"foo"[..]));
         assert_eq!(false, c.map(&b"foobar"[..]));
+
+        let req = http::Request::get("/test?foo=bar").body("foobar").unwrap();
+        assert!(request::body(len(eq(6))).map(&req));
     }
 
     #[test]

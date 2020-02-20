@@ -28,6 +28,16 @@ where
 }
 
 /// Extract the path from the HTTP request and pass it to the next mapper.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// request::path("/foo");
+///
+/// request::path(matches("^/(foo|bar)$"));
+/// ```
 pub fn path<M>(inner: M) -> Path<M> {
     Path(inner)
 }
@@ -50,6 +60,14 @@ where
 }
 
 /// Extract the query from the HTTP request and pass it to the next mapper.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// request::query(url_decoded(contains(("foobar", "value"))));
+/// ```
 pub fn query<M>(inner: M) -> Query<M> {
     Query(inner)
 }
@@ -73,6 +91,16 @@ where
 
 /// Extract the headers from the HTTP request and pass the sequence to the next
 /// mapper.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// request::headers(contains(("x-foobar", "value")));
+///
+/// request::headers(contains(key("x-foobar")));
+/// ```
 pub fn headers<M>(inner: M) -> Headers<M> {
     Headers(inner)
 }
@@ -105,6 +133,18 @@ where
 }
 
 /// Extract the body from the HTTP request and pass it to the next mapper.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// request::body("foobar");
+///
+/// request::body(json_decoded(eq(serde_json::json!({
+///     "foo": 1,
+/// }))));
+/// ```
 pub fn body<M>(inner: M) -> Body<M> {
     Body(inner)
 }

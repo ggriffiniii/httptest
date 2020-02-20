@@ -58,6 +58,15 @@ where
 }
 
 /// Always true.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a query parameter `foobar` with any value.
+/// request::query(url_decoded(contains(("foobar", any()))));
+/// ```
 pub fn any() -> Any {
     Any
 }
@@ -80,6 +89,16 @@ where
 }
 
 /// true if the input is equal to value.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// request::body(json_decoded(eq(serde_json::json!({
+///     "foo": 1,
+/// }))));
+/// ```
 pub fn eq<T>(value: T) -> Eq<T> {
     Eq(value)
 }
@@ -188,6 +207,15 @@ impl IntoRegex for regex::bytes::Regex {
 }
 
 /// true if the input matches the regex provided.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a request to path "/test/foo" or "/test/bar".
+/// request::path(matches("^/test/(foo|bar)$"));
+/// ```
 pub fn matches(value: impl IntoRegex) -> Matches {
     //let regex = regex::bytes::Regex::new(value).expect("failed to create regex");
     Matches(value.into_regex())
@@ -211,6 +239,15 @@ where
 }
 
 /// invert the result of the inner mapper.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches if there is no `foobar` query parameter.
+/// request::query(url_decoded(not(contains(key("foobar")))));
+/// ```
 pub fn not<M>(inner: M) -> Not<M> {
     Not(inner)
 }
@@ -234,6 +271,19 @@ where
 
 /// true if all the provided matchers return true. See the `all_of!` macro for
 /// convenient usage.
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a POST with a path that matches the regex 'foo.*'.
+/// let mut m = all_of![
+///     request::method("POST"),
+///     request::path(matches("foo.*")),
+/// ];
+///
+/// # // Allow type inference to determine the request type.
+/// # m.map(&http::Request::get("/").body("").unwrap());
+/// ```
 pub fn all_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AllOf<IN>
 where
     IN: ?Sized,
@@ -274,6 +324,22 @@ where
 
 /// true if any of the provided matchers returns true. See the `any_of!` macro
 /// for convenient usage.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a request to path "/foo"
+/// // or matches the reqex '^/test/(foo|bar)$'.
+/// let mut m = any_of![
+///     request::path("/foo"),
+///     request::path(matches("^/test/(foo|bar)$")),
+/// ];
+///
+/// # // Allow type inference to determine the request type.
+/// # m.map(&http::Request::get("/").body("").unwrap());
+/// ```
 pub fn any_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AnyOf<IN>
 where
     IN: ?Sized,
@@ -340,6 +406,18 @@ where
 }
 
 /// url decode the input and pass the resulting slice of key-value pairs to the next mapper.
+///
+/// # Example
+///
+/// ```rust
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a request with a query parameter `foobar=value`.
+/// request::query(url_decoded(contains(("foobar", "value"))));
+///
+/// // A request matcher that matches a request with a form-urlencoded parameter `foobar=value`.
+/// request::body(url_decoded(contains(("foobar", "value"))));
+/// ```
 pub fn url_decoded<M>(inner: M) -> UrlDecoded<M> {
     UrlDecoded(inner)
 }
@@ -375,8 +453,12 @@ where
 /// This can be used with Fn mappers to allow for flexible matching of json content.
 /// The following example matches whenever the body of the request contains a
 /// json list of strings of length 3.
+///
+/// # Example
+///
 /// ```rust
 /// use httptest::mappers::*;
+///
 /// request::body(json_decoded(|b: &Vec<String>| b.len() == 3));
 /// ```
 pub fn json_decoded<T, M>(inner: M) -> JsonDecoded<T, M>
@@ -412,6 +494,15 @@ where
 }
 
 /// lowercase the input and pass it to the next mapper.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a request with a query parameter `foo` in any case.
+/// request::query(url_decoded(contains(key(lowercase("foo")))));
+/// ```
 pub fn lowercase<M>(inner: M) -> Lowercase<M> {
     Lowercase(inner)
 }
@@ -460,6 +551,22 @@ where
 /// to true.
 ///
 /// Look at [matches()](fn.matches.html) if substring matching is what want.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a request with a header `x-foobar=value`.
+/// request::headers(contains(("x-foobar", "value")));
+///
+/// // A request matcher that matches a request with a query parameter `foo=bar`.
+/// request::query(url_decoded(contains(("foo", "bar"))));
+///
+/// // A request matcher that matches a request with a query parameter `foo` and any value.
+/// // Same as `contains(key("foo"))`.
+/// request::query(url_decoded(contains(("foo", any()))));
+/// ```
 pub fn contains<M>(inner: M) -> Contains<M> {
     Contains(inner)
 }
@@ -484,6 +591,18 @@ where
 }
 
 /// extract the key from a key-value pair.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a request with a header `x-foobar` with any value.
+/// request::headers(contains(key("x-foobar")));
+///
+/// // A request matcher that matches a request with a query parameter `foobar` with any value.
+/// request::query(url_decoded(contains(key("foobar"))));
+/// ```
 pub fn key<M>(inner: M) -> Key<M> {
     Key(inner)
 }
@@ -508,6 +627,15 @@ where
 }
 
 /// extract the value from a key-value pair.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches any query parameter with the value `foobar`.
+/// request::query(url_decoded(contains(value("foobar"))));
+/// ```
 pub fn value<M>(inner: M) -> Value<M> {
     Value(inner)
 }
@@ -553,6 +681,21 @@ where
 }
 
 /// extract the length of the input.
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a header `x-foobar` and the value has the length of 3.
+/// request::headers(contains(("x-foobar", len(eq(3)))));
+///
+/// // A request matcher that matches a request with two query parameters.
+/// request::query(url_decoded(len(eq(2))));
+///
+/// // A request matcher that matches a body with the length of 42.
+/// request::body(len(eq(42)));
+/// ```
 pub fn len<M>(inner: M) -> Len<M> {
     Len(inner)
 }

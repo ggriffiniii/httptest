@@ -83,7 +83,7 @@ each test case and have the Drop implementation at the end of the test assert
 all expectations were met. This runs a separate server for each test. Rust's
 test harness starts a separate thread for each test within a test-suite so
 the machine running the test would likely end up running a server for each
-#[test] function concurrently. For large test suites this could cause machine
+#\[test\] function concurrently. For large test suites this could cause machine
 wide resources (like tcp ports) to become scarce. To address this you could
 use the --test-threads flag on the test-harness to limit the number of
 threads running, or alternatively you could use a global

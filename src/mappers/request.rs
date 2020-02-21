@@ -34,8 +34,10 @@ where
 /// ```
 /// use httptest::mappers::*;
 ///
+/// // A request matcher that matches a path of `/foo`.
 /// request::path("/foo");
 ///
+/// // A request matcher that matches a path of `/foo` or `/bar`.
 /// request::path(matches("^/(foo|bar)$"));
 /// ```
 pub fn path<M>(inner: M) -> Path<M> {
@@ -66,6 +68,7 @@ where
 /// ```
 /// use httptest::mappers::*;
 ///
+/// // A request matcher that matches a request with a query parameter `foobar=value`.
 /// request::query(url_decoded(contains(("foobar", "value"))));
 /// ```
 pub fn query<M>(inner: M) -> Query<M> {
@@ -97,8 +100,10 @@ where
 /// ```
 /// use httptest::mappers::*;
 ///
+/// // A request matcher that matches a request with the header `x-foobar: value`.
 /// request::headers(contains(("x-foobar", "value")));
 ///
+/// // A request matcher that matches a request with the header `x-foobar` with any value.
 /// request::headers(contains(key("x-foobar")));
 /// ```
 pub fn headers<M>(inner: M) -> Headers<M> {
@@ -139,8 +144,10 @@ where
 /// ```
 /// use httptest::mappers::*;
 ///
+/// // A request matcher that matches a body of `foobar`.
 /// request::body("foobar");
 ///
+/// // A request matcher that matches a json encoded body of `{"foo": 1}`
 /// request::body(json_decoded(eq(serde_json::json!({
 ///     "foo": 1,
 /// }))));
@@ -214,6 +221,15 @@ where
 /// A convenience matcher for both method and path. Extracts a bolean true if the method and path both match.
 ///
 /// `method_path(a, b) == all_of![method(a), path(b)]`
+///
+/// # Example
+///
+/// ```
+/// use httptest::mappers::*;
+///
+/// // A request matcher that matches a `GET` request to `/foo`.
+/// request::method_path("GET", "/foo");
+/// ```
 pub fn method_path<M, P>(method: M, path: P) -> MethodPath<M, P> {
     MethodPath { method, path }
 }

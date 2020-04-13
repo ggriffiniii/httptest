@@ -103,7 +103,7 @@ static SERVER_POOL: ServerPool = ServerPool::new(2);
 #[test]
 fn test1() {
     let server = SERVER_POOL.get_server();
-    server.Expect(Expectation::matching(any()).respond_with(status_code(200)));
+    server.expect(Expectation::matching(any()).respond_with(status_code(200)));
 
     // Send requests to server
     // Server will assert expectations on drop.
@@ -112,7 +112,7 @@ fn test1() {
 #[test]
 fn test2() {
     let server = SERVER_POOL.get_server();
-    server.Expect(Expectation::matching(any()).respond_with(status_code(200)));
+    server.expect(Expectation::matching(any()).respond_with(status_code(200)));
 
     // Send requests to server
     // Server will assert expectations on drop.
@@ -121,7 +121,7 @@ fn test2() {
 #[test]
 fn test3() {
     let server = SERVER_POOL.get_server();
-    server.Expect(Expectation::matching(any()).respond_with(status_code(200)));
+    server.expect(Expectation::matching(any()).respond_with(status_code(200)));
 
     // Send requests to server
     // Server will assert expectations on drop.

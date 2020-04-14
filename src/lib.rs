@@ -200,7 +200,7 @@ let mut m = all_of![
 ];
 
 # // Allow type inference to determine the request type.
-# m.matches(&http::Request::get("/").body("").unwrap());
+# ExecutionContext::evaluate(&mut m, &http::Request::get("/").body("").unwrap());
 ```
 
 ## Times

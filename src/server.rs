@@ -1,4 +1,4 @@
-use crate::matchers::{matcher_name, Matcher};
+use crate::matchers::{matcher_name, ExecutionContext, Matcher};
 use crate::responders::Responder;
 use std::fmt;
 use std::future::Future;
@@ -306,7 +306,7 @@ struct ServerStateInner {
 impl ServerStateInner {
     fn find_expectation(&mut self, req: &FullRequest) -> Option<&mut Expectation> {
         for expectation in self.expected.iter_mut().rev() {
-            if expectation.matcher.matches(req) {
+            if ExecutionContext::evaluate(expectation.matcher.as_mut(), req) {
                 return Some(expectation);
             }
         }

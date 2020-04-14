@@ -1,6 +1,6 @@
 //! Matchers that extract information from HTTP requests.
 
-use super::{matcher_name, Matcher, KV};
+use super::{matcher_name, ExecutionContext, Matcher, KV};
 use std::fmt;
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
@@ -14,8 +14,8 @@ impl<M, B> Matcher<http::Request<B>> for Method<M>
 where
     M: Matcher<str>,
 {
-    fn matches(&mut self, input: &http::Request<B>) -> bool {
-        self.0.matches(input.method().as_str())
+    fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
+        ctx.chain(&mut self.0, input.method().as_str())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -48,8 +48,8 @@ impl<M, B> Matcher<http::Request<B>> for Path<M>
 where
     M: Matcher<str>,
 {
-    fn matches(&mut self, input: &http::Request<B>) -> bool {
-        self.0.matches(input.uri().path())
+    fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
+        ctx.chain(&mut self.0, input.uri().path())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -77,8 +77,8 @@ impl<M, B> Matcher<http::Request<B>> for Query<M>
 where
     M: Matcher<str>,
 {
-    fn matches(&mut self, input: &http::Request<B>) -> bool {
-        self.0.matches(input.uri().query().unwrap_or(""))
+    fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
+        ctx.chain(&mut self.0, input.uri().query().unwrap_or(""))
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -112,7 +112,7 @@ impl<M, B> Matcher<http::Request<B>> for Headers<M>
 where
     M: Matcher<[KV<str, [u8]>]>,
 {
-    fn matches(&mut self, input: &http::Request<B>) -> bool {
+    fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
         let headers: Vec<KV<str, [u8]>> = input
             .headers()
             .iter()
@@ -121,7 +121,7 @@ where
                 v: v.as_bytes().to_owned(),
             })
             .collect();
-        self.0.matches(&headers)
+        ctx.chain(&mut self.0, &headers)
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -158,8 +158,8 @@ where
     B: AsRef<[u8]>,
     M: Matcher<[u8]>,
 {
-    fn matches(&mut self, input: &http::Request<B>) -> bool {
-        self.0.matches(input.body().as_ref())
+    fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
+        ctx.chain(&mut self.0, input.body().as_ref())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -193,8 +193,9 @@ where
     M: Matcher<str>,
     P: Matcher<str>,
 {
-    fn matches(&mut self, input: &http::Request<B>) -> bool {
-        self.method.matches(input.method().as_str()) && self.path.matches(input.uri().path())
+    fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
+        ctx.chain(&mut self.method, input.method().as_str())
+            && ctx.chain(&mut self.path, input.uri().path())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -210,17 +211,26 @@ mod tests {
     use super::*;
     use crate::matchers::*;
 
+    fn eval<M, I>(matcher: &mut M, input: &I) -> bool
+    where
+        M: Matcher<I> + ?Sized,
+        I: fmt::Debug + ?Sized,
+    {
+        ExecutionContext::evaluate(matcher, input)
+    }
+
     #[test]
     fn test_path() {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(path("/foo").matches(&req));
+        assert!(eval(&mut path("/foo"), &req));
 
         let req = http::Request::get("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(path("/foobar").matches(&req))
+
+        assert!(eval(&mut path("/foobar"), &req));
     }
 
     #[test]
@@ -228,11 +238,11 @@ mod tests {
         let req = http::Request::get("https://example.com/path?foo=bar&baz=bat")
             .body("")
             .unwrap();
-        assert!(query("foo=bar&baz=bat").matches(&req));
+        assert!(eval(&mut query("foo=bar&baz=bat"), &req));
         let req = http::Request::get("https://example.com/path?search=1")
             .body("")
             .unwrap();
-        assert!(query("search=1").matches(&req));
+        assert!(eval(&mut query("search=1"), &req));
     }
 
     #[test]
@@ -240,11 +250,11 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(method("GET").matches(&req));
+        assert!(eval(&mut method("GET"), &req));
         let req = http::Request::post("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(method("POST").matches(&req));
+        assert!(eval(&mut method("POST"), &req));
     }
 
     #[test]
@@ -267,7 +277,7 @@ mod tests {
             ),
         ]);
 
-        assert!(headers(eq(expected)).matches(&req));
+        assert!(eval(&mut headers(eq(expected)), &req));
     }
 
     #[test]
@@ -275,7 +285,7 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("my request body")
             .unwrap();
-        assert!(body("my request body").matches(&req));
+        assert!(eval(&mut body("my request body"), &req));
     }
 
     #[test]
@@ -283,15 +293,15 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(method_path("GET", "/foo").matches(&req));
-        assert!(!method_path("POST", "/foo").matches(&req));
-        assert!(!method_path("GET", "/").matches(&req));
+        assert!(eval(&mut method_path("GET", "/foo"), &req));
+        assert!(!eval(&mut method_path("POST", "/foo"), &req));
+        assert!(!eval(&mut method_path("GET", "/"), &req));
 
         let req = http::Request::post("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(method_path("POST", "/foobar").matches(&req));
-        assert!(!method_path("GET", "/foobar").matches(&req));
-        assert!(!method_path("POST", "/").matches(&req));
+        assert!(eval(&mut method_path("POST", "/foobar"), &req));
+        assert!(!eval(&mut method_path("GET", "/foobar"), &req));
+        assert!(!eval(&mut method_path("POST", "/"), &req));
     }
 }

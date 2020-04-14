@@ -1,4 +1,4 @@
-use httptest::{mappers::*, responders::*, Expectation};
+use httptest::{matchers::*, responders::*, Expectation};
 use std::future::Future;
 
 async fn read_response_body(
@@ -182,7 +182,7 @@ async fn test_respond_with_fn() {
 
 #[tokio::test]
 async fn test_custom_json() {
-    use httptest::{mappers::*, responders::*, Expectation, Server};
+    use httptest::{matchers::*, responders::*, Expectation, Server};
     use serde_json::json;
     let _ = pretty_env_logger::try_init();
 
@@ -226,7 +226,7 @@ async fn test_custom_json() {
 
 #[tokio::test]
 async fn test_readme() {
-    use httptest::{mappers::*, responders::*, Expectation, Server};
+    use httptest::{matchers::*, responders::*, Expectation, Server};
     use serde_json::json;
     // Starting a logger within the test can make debugging a failed test
     // easier. The mock http server will log::debug every request and response

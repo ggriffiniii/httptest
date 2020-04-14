@@ -13,7 +13,7 @@ running http server. The typical usage is as follows:
 
 ```
 # async fn foo() {
-use httptest::{Server, Expectation, mappers::*, responders::*};
+use httptest::{Server, Expectation, matchers::*, responders::*};
 // Start a server running on a local ephemeral port.
 let server = Server::run();
 // Configure the server to expect a single GET /foo request and respond
@@ -143,7 +143,7 @@ times it's expected to be called, and what it should respond with.
 ### Expectation example
 
 ```
-use httptest::{Expectation, mappers::*, responders::*};
+use httptest::{Expectation, matchers::*, responders::*};
 
 // Define an Expectation that matches any request to path /foo, expects to
 // receive at least 1 such request, and responds with a 200 response.
@@ -155,32 +155,30 @@ Expectation::matching(request::path("/foo"))
 ## Request Matchers
 
 Defining which request an expecation matches is done in a composable manner
-using a series of traits. The core of which is
-[Mapper](mappers/trait.Mapper.html). The `Mapper` trait is generic
-over an input type, has an associated `Out` type, and defines a single method
-`map` that converts from a shared reference of the input type to the `Out`
-type.
+using a [Matcher](matchers/trait.Matcher.html) trait. The `Matcher` trait is
+generic over an input type and defines a single method `matches` that returns
+a boolean if the input matches.
 
-A request matcher is any `Mapper` that accepts a
-`http::Request<hyper::body::Bytes>` as input, and maps that to a boolean. A
-true result indicates the request matches.
+A request matcher is any `Matcher` that accepts a
+`http::Request<hyper::body::Bytes>` as input. A true result indicates the
+request matches.
 
 With that understanding we can discuss how to easily define a request
-matcher. There are a variety of pre-defined mappers within the
-[mappers](mappers/index.html) module. These mappers can be composed
-together to define the values you want to match. The mappers fall into two
-categories. Some of the mappers extract a value from the input type and pass
-it to another mapper, other mappers accept an input type and return a bool.
+matcher. There are a variety of pre-defined matchers within the
+[matchers](matchers/index.html) module. These matchers can be composed
+together to define the values you want to match. The matchers fall into two
+categories. Some of the matchers extract a value from the input type and pass
+it to another matcher, other matchers accept an input type and return a bool.
 These primitives provide an easy and flexible way to define custom logic.
 
 ### Matcher examples
 
 ```
-// pull all the predefined mappers into our namespace.
-use httptest::mappers::*;
+// pull all the predefined matchers into our namespace.
+use httptest::matchers::*;
 
-// &str, String, and &[u8] all implement mappers that test for equality.
-// All of these mappers return true when the input equals "/foo"
+// &str, String, and &[u8] all implement matchers that test for equality.
+// All of these matchers return true when the input equals "/foo"
 let mut m = eq("/foo");
 let mut m = "/foo";
 let mut m = "/foo".to_string();
@@ -202,7 +200,7 @@ let mut m = all_of![
 ];
 
 # // Allow type inference to determine the request type.
-# m.map(&http::Request::get("/").body("").unwrap());
+# m.matches(&http::Request::get("/").body("").unwrap());
 ```
 
 ## Times
@@ -213,7 +211,7 @@ be received. The default is exactly once. The ExpectationBuilder provides a
 number of requests expected.
 
 ```
-# use httptest::{Expectation, mappers::any, responders::status_code};
+# use httptest::{Expectation, matchers::any, responders::status_code};
 // Expect exactly one request
 Expectation::matching(any())
     .respond_with(status_code(200));
@@ -298,25 +296,25 @@ cycle![
 
 /// true if all the provided matchers return true.
 ///
-/// The macro exists to conveniently box a list of mappers and put them into a
-/// `Vec<Box<dyn Mapper>>`. The translation is:
+/// The macro exists to conveniently box a list of matchers and put them into a
+/// `Vec<Box<dyn Matcher>>`. The translation is:
 ///
 /// `all_of![a, b] => all_of(vec![Box::new(a), Box::new(b)])`
 #[macro_export]
 macro_rules! all_of {
-    ($($x:expr),*) => ($crate::mappers::all_of($crate::vec_of_boxes![$($x),*]));
+    ($($x:expr),*) => ($crate::matchers::all_of($crate::vec_of_boxes![$($x),*]));
     ($($x:expr,)*) => ($crate::all_of![$($x),*]);
 }
 
 /// true if any of the provided matchers return true.
 ///
-/// The macro exists to conveniently box a list of mappers and put them into a
-/// `Vec<Box<dyn Mapper>>`. The translation is:
+/// The macro exists to conveniently box a list of matchers and put them into a
+/// `Vec<Box<dyn Matcher>>`. The translation is:
 ///
 /// `any_of![a, b] => any_of(vec![Box::new(a), Box::new(b)])`
 #[macro_export]
 macro_rules! any_of {
-    ($($x:expr),*) => ($crate::mappers::any_of($crate::vec_of_boxes![$($x),*]));
+    ($($x:expr),*) => ($crate::matchers::any_of($crate::vec_of_boxes![$($x),*]));
     ($($x:expr,)*) => ($crate::any_of![$($x),*]);
 }
 
@@ -341,7 +339,7 @@ macro_rules! vec_of_boxes {
 }
 
 mod into_times;
-pub mod mappers;
+pub mod matchers;
 pub mod responders;
 mod server;
 mod server_pool;

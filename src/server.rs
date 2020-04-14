@@ -1,4 +1,4 @@
-use crate::mappers::{mapper_name, Mapper};
+use crate::matchers::{matcher_name, Matcher};
 use crate::responders::Responder;
 use std::fmt;
 use std::future::Future;
@@ -43,7 +43,7 @@ impl Server {
                         move |req: http::Request<hyper::Body>| {
                             let state = state.clone();
                             async move {
-                                // read the full body into memory prior to handing it to mappers.
+                                // read the full body into memory prior to handing it to matchers.
                                 let (head, body) = req.into_parts();
                                 let full_body = hyper::body::to_bytes(body).await?;
                                 let req = http::Request::from_parts(head, full_body);
@@ -130,7 +130,7 @@ impl Server {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(format!(
                     "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
-                    mapper_name(&*expectation.matcher),
+                    matcher_name(&*expectation.matcher),
                     expectation.hit_count,
                     RangeDisplay(expectation.times),
                 ));
@@ -164,13 +164,13 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
         // evaluated most recently added first.
         match state.find_expectation(&req) {
             Some(expectation) => {
-                log::debug!("found matcher: {:?}", mapper_name(&*expectation.matcher));
+                log::debug!("found matcher: {:?}", matcher_name(&*expectation.matcher));
                 expectation.hit_count += 1;
                 if !times_exceeded(expectation.times.1, expectation.hit_count) {
                     Some(expectation.responder.respond(&req))
                 } else {
                     Some(times_error(
-                        &*expectation.matcher as &dyn Mapper<FullRequest, Out = bool>,
+                        &*expectation.matcher as &dyn Matcher<FullRequest>,
                         expectation.times,
                         expectation.hit_count,
                     ))
@@ -207,7 +207,7 @@ fn hit_count_is_valid(bounds: (Bound<usize>, Bound<usize>), hit_count: usize) ->
 
 /// An expectation to be asserted by the server.
 pub struct Expectation {
-    matcher: Box<dyn Mapper<FullRequest, Out = bool>>,
+    matcher: Box<dyn Matcher<FullRequest>>,
     times: (Bound<usize>, Bound<usize>),
     responder: Box<dyn Responder>,
     hit_count: usize,
@@ -215,7 +215,7 @@ pub struct Expectation {
 
 impl Expectation {
     /// What requests will this expectation match.
-    pub fn matching(matcher: impl Mapper<FullRequest, Out = bool> + 'static) -> ExpectationBuilder {
+    pub fn matching(matcher: impl Matcher<FullRequest> + 'static) -> ExpectationBuilder {
         ExpectationBuilder {
             matcher: Box::new(matcher),
             // expect exactly one request by default.
@@ -227,7 +227,7 @@ impl Expectation {
 impl fmt::Debug for Expectation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Expectation")
-            .field("matcher", &mapper_name(&*self.matcher))
+            .field("matcher", &matcher_name(&*self.matcher))
             .field("times", &self.times)
             .field("hit_count", &self.hit_count)
             .finish()
@@ -236,7 +236,7 @@ impl fmt::Debug for Expectation {
 
 /// Define expectations using a builder pattern.
 pub struct ExpectationBuilder {
-    matcher: Box<dyn Mapper<FullRequest, Out = bool>>,
+    matcher: Box<dyn Matcher<FullRequest>>,
     times: (Bound<usize>, Bound<usize>),
 }
 
@@ -244,7 +244,7 @@ impl ExpectationBuilder {
     /// Expect this many requests.
     ///
     /// ```
-    /// # use httptest::{Expectation, mappers::any, responders::status_code};
+    /// # use httptest::{Expectation, matchers::any, responders::status_code};
     /// // exactly 2 requests
     /// Expectation::matching(any()).times(2).respond_with(status_code(200));
     /// // at least 2 requests
@@ -306,7 +306,7 @@ struct ServerStateInner {
 impl ServerStateInner {
     fn find_expectation(&mut self, req: &FullRequest) -> Option<&mut Expectation> {
         for expectation in self.expected.iter_mut().rev() {
-            if expectation.matcher.map(req) {
+            if expectation.matcher.matches(req) {
                 return Some(expectation);
             }
         }
@@ -324,13 +324,13 @@ impl Default for ServerStateInner {
 }
 
 fn times_error(
-    matcher: &dyn Mapper<FullRequest, Out = bool>,
+    matcher: &dyn Matcher<FullRequest>,
     times: (Bound<usize>, Bound<usize>),
     hit_count: usize,
 ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
     let body = hyper::Body::from(format!(
         "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
-        mapper_name(&*matcher),
+        matcher_name(&*matcher),
         hit_count,
         RangeDisplay(times),
     ));

@@ -1,6 +1,6 @@
-//! Mapper implementations.
+//! Matcher implementations.
 //!
-//! This module contains mappers for composing a set of operations. The result
+//! This module contains matchers for composing a set of operations. The result
 //! of the composition usually results in a boolean.
 
 use std::borrow::Borrow;
@@ -18,38 +18,35 @@ pub mod request;
 
 /// The core trait. Defines how an input value should be turned into an output
 /// value. This allows for a flexible pattern of composition where two or more
-/// mappers are chained together to form a readable and flexible manipulation.
-pub trait Mapper<IN>: Send
+/// matchers are chained together to form a readable and flexible manipulation.
+pub trait Matcher<IN>: Send
 where
     IN: ?Sized,
 {
-    /// The output type.
-    type Out;
-
     /// Map an input to output.
-    fn map(&mut self, input: &IN) -> Self::Out;
+    fn matches(&mut self, input: &IN) -> bool;
 
     /// formatted name of the mapper. This is used for debugging purposes and
     /// should typically look like a fmt::Debug representation.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
-/// convenience function to print the Mapper::fmt representation of a mapper.
-/// Returns an object with a fmt::Debug matching the Mapper::fmt.
-pub(crate) fn mapper_name<M, IN>(mapper: &M) -> MapperName<'_, M, IN>
+/// convenience function to print the Matcher::fmt representation of a mapper.
+/// Returns an object with a fmt::Debug matching the Matcher::fmt.
+pub(crate) fn matcher_name<M, IN>(mapper: &M) -> MatcherName<'_, M, IN>
 where
     M: ?Sized,
     IN: ?Sized,
 {
-    MapperName(mapper, PhantomData)
+    MatcherName(mapper, PhantomData)
 }
-pub(crate) struct MapperName<'a, M, IN>(&'a M, PhantomData<&'a IN>)
+pub(crate) struct MatcherName<'a, M, IN>(&'a M, PhantomData<&'a IN>)
 where
     M: ?Sized,
     IN: ?Sized;
-impl<'a, M, IN> fmt::Debug for MapperName<'a, M, IN>
+impl<'a, M, IN> fmt::Debug for MatcherName<'a, M, IN>
 where
-    M: Mapper<IN> + ?Sized,
+    M: Matcher<IN> + ?Sized,
     IN: ?Sized,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -62,7 +59,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a query parameter `foobar` with any value.
 /// request::query(url_decoded(contains(("foobar", any()))));
@@ -73,13 +70,11 @@ pub fn any() -> Any {
 /// The `Any` mapper returned by [any()](fn.any.html)
 #[derive(Debug)]
 pub struct Any;
-impl<IN> Mapper<IN> for Any
+impl<IN> Matcher<IN> for Any
 where
     IN: ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, _input: &IN) -> bool {
+    fn matches(&mut self, _input: &IN) -> bool {
         true
     }
 
@@ -93,7 +88,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// request::body(json_decoded(eq(serde_json::json!({
 ///     "foo": 1,
@@ -106,14 +101,12 @@ pub fn eq<T>(value: T) -> Eq<T> {
 pub struct Eq<T>(T)
 where
     T: ?Sized;
-impl<IN, T> Mapper<IN> for Eq<T>
+impl<IN, T> Matcher<IN> for Eq<T>
 where
     T: Borrow<IN> + fmt::Debug + Send + ?Sized,
     IN: PartialEq + ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         self.0.borrow() == input
     }
 
@@ -131,13 +124,11 @@ where
 }
 
 /// A &str is an implicit Eq mapper.
-impl<IN> Mapper<IN> for &str
+impl<IN> Matcher<IN> for &str
 where
     IN: AsRef<[u8]> + ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         self.as_bytes() == input.as_ref()
     }
 
@@ -147,13 +138,11 @@ where
 }
 
 /// A String is an implicit Eq mapper.
-impl<IN> Mapper<IN> for String
+impl<IN> Matcher<IN> for String
 where
     IN: AsRef<[u8]> + ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         self.as_bytes() == input.as_ref()
     }
 
@@ -163,13 +152,11 @@ where
 }
 
 /// A &[u8] is an implicit Eq mapper.
-impl<IN> Mapper<IN> for &[u8]
+impl<IN> Matcher<IN> for &[u8]
 where
     IN: AsRef<[u8]> + ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         *self == input.as_ref()
     }
 
@@ -211,7 +198,7 @@ impl IntoRegex for regex::bytes::Regex {
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request to path "/test/foo" or "/test/bar".
 /// request::path(matches("^/test/(foo|bar)$"));
@@ -223,13 +210,11 @@ pub fn matches(value: impl IntoRegex) -> Matches {
 /// The `Matches` mapper returned by [matches()](fn.matches.html)
 #[derive(Debug)]
 pub struct Matches(regex::bytes::Regex);
-impl<IN> Mapper<IN> for Matches
+impl<IN> Matcher<IN> for Matches
 where
     IN: AsRef<[u8]> + ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         self.0.is_match(input.as_ref())
     }
 
@@ -243,7 +228,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches if there is no `foobar` query parameter.
 /// request::query(url_decoded(not(contains(key("foobar")))));
@@ -253,19 +238,17 @@ pub fn not<M>(inner: M) -> Not<M> {
 }
 /// The `Not` mapper returned by [not()](fn.not.html)
 pub struct Not<M>(M);
-impl<M, IN> Mapper<IN> for Not<M>
+impl<M, IN> Matcher<IN> for Not<M>
 where
-    M: Mapper<IN, Out = bool>,
+    M: Matcher<IN>,
     IN: ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
-        !self.0.map(input)
+    fn matches(&mut self, input: &IN) -> bool {
+        !self.0.matches(input)
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Not").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Not").field(&matcher_name(&self.0)).finish()
     }
 }
 
@@ -273,7 +256,7 @@ where
 /// convenient usage.
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a POST with a path that matches the regex 'foo.*'.
 /// let mut m = all_of![
@@ -282,9 +265,9 @@ where
 /// ];
 ///
 /// # // Allow type inference to determine the request type.
-/// # m.map(&http::Request::get("/").body("").unwrap());
+/// # m.matches(&http::Request::get("/").body("").unwrap());
 /// ```
-pub fn all_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AllOf<IN>
+pub fn all_of<IN>(inner: Vec<Box<dyn Matcher<IN>>>) -> AllOf<IN>
 where
     IN: ?Sized,
 {
@@ -292,17 +275,15 @@ where
 }
 
 /// The `AllOf` mapper returned by [all_of()](fn.all_of.html)
-pub struct AllOf<IN>(Vec<Box<dyn Mapper<IN, Out = bool>>>)
+pub struct AllOf<IN>(Vec<Box<dyn Matcher<IN>>>)
 where
     IN: ?Sized;
-impl<IN> Mapper<IN> for AllOf<IN>
+impl<IN> Matcher<IN> for AllOf<IN>
 where
     IN: ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
-        self.0.iter_mut().all(|maper| maper.map(input))
+    fn matches(&mut self, input: &IN) -> bool {
+        self.0.iter_mut().all(|maper| maper.matches(input))
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -317,7 +298,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("AllOf")?;
         f.debug_list()
-            .entries(self.0.iter().map(|x| mapper_name(&**x)))
+            .entries(self.0.iter().map(|x| matcher_name(&**x)))
             .finish()
     }
 }
@@ -328,7 +309,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request to path "/foo"
 /// // or matches the reqex '^/test/(foo|bar)$'.
@@ -338,26 +319,24 @@ where
 /// ];
 ///
 /// # // Allow type inference to determine the request type.
-/// # m.map(&http::Request::get("/").body("").unwrap());
+/// # m.matches(&http::Request::get("/").body("").unwrap());
 /// ```
-pub fn any_of<IN>(inner: Vec<Box<dyn Mapper<IN, Out = bool>>>) -> AnyOf<IN>
+pub fn any_of<IN>(inner: Vec<Box<dyn Matcher<IN>>>) -> AnyOf<IN>
 where
     IN: ?Sized,
 {
     AnyOf(inner)
 }
 /// The `AnyOf` mapper returned by [any_of()](fn.any_of.html)
-pub struct AnyOf<IN>(Vec<Box<dyn Mapper<IN, Out = bool>>>)
+pub struct AnyOf<IN>(Vec<Box<dyn Matcher<IN>>>)
 where
     IN: ?Sized;
-impl<IN> Mapper<IN> for AnyOf<IN>
+impl<IN> Matcher<IN> for AnyOf<IN>
 where
     IN: ?Sized,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
-        self.0.iter_mut().any(|maper| maper.map(input))
+    fn matches(&mut self, input: &IN) -> bool {
+        self.0.iter_mut().any(|maper| maper.matches(input))
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -372,7 +351,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("AnyOf")?;
         f.debug_list()
-            .entries(self.0.iter().map(|x| mapper_name(&**x)))
+            .entries(self.0.iter().map(|x| matcher_name(&**x)))
             .finish()
     }
 }
@@ -410,7 +389,7 @@ where
 /// # Example
 ///
 /// ```rust
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request with a query parameter `foobar=value`.
 /// request::query(url_decoded(contains(("foobar", "value"))));
@@ -424,24 +403,22 @@ pub fn url_decoded<M>(inner: M) -> UrlDecoded<M> {
 /// The `UrlDecoded` mapper returned by [url_decoded()](fn.url_decoded.html)
 #[derive(Debug)]
 pub struct UrlDecoded<M>(M);
-impl<IN, M> Mapper<IN> for UrlDecoded<M>
+impl<IN, M> Matcher<IN> for UrlDecoded<M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    M: Mapper<[KV<str, str>]>,
+    M: Matcher<[KV<str, str>]>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &IN) -> M::Out {
+    fn matches(&mut self, input: &IN) -> bool {
         let decoded: Vec<KV<str, str>> = url::form_urlencoded::parse(input.as_ref())
             .into_owned()
             .map(|(k, v)| KV { k, v })
             .collect();
-        self.0.map(&decoded)
+        self.0.matches(&decoded)
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("UrlDecoded")
-            .field(&mapper_name(&self.0))
+            .field(&matcher_name(&self.0))
             .finish()
     }
 }
@@ -450,45 +427,43 @@ where
 /// the input cannot be decoded a false value is returned. The inner mapper is
 /// required to return a bool value.
 ///
-/// This can be used with Fn mappers to allow for flexible matching of json content.
+/// This can be used with Fn matchers to allow for flexible matching of json content.
 /// The following example matches whenever the body of the request contains a
 /// json list of strings of length 3.
 ///
 /// # Example
 ///
 /// ```rust
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// request::body(json_decoded(|b: &Vec<String>| b.len() == 3));
 /// ```
 pub fn json_decoded<T, M>(inner: M) -> JsonDecoded<T, M>
 where
-    M: Mapper<T, Out = bool>,
+    M: Matcher<T>,
 {
     JsonDecoded(PhantomData, inner)
 }
 /// The `JsonDecoded` mapper returned by [json_decoded()](fn.json_decoded.html)
 #[derive(Debug)]
 pub struct JsonDecoded<T, M>(PhantomData<T>, M);
-impl<IN, T, M> Mapper<IN> for JsonDecoded<T, M>
+impl<IN, T, M> Matcher<IN> for JsonDecoded<T, M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    M: Mapper<T, Out = bool>,
+    M: Matcher<T>,
     T: serde::de::DeserializeOwned + Send,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         let value: T = match serde_json::from_slice(input.as_ref()) {
             Ok(value) => value,
             Err(_) => return false,
         };
-        self.1.map(&value)
+        self.1.matches(&value)
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("JsonDecoded")
-            .field(&mapper_name(&self.1))
+            .field(&matcher_name(&self.1))
             .finish()
     }
 }
@@ -498,7 +473,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request with a query parameter `foo` in any case.
 /// request::query(url_decoded(contains(key(lowercase("foo")))));
@@ -509,33 +484,29 @@ pub fn lowercase<M>(inner: M) -> Lowercase<M> {
 /// The `Lowercase` mapper returned by [lowercase()](fn.lowercase.html)
 #[derive(Debug)]
 pub struct Lowercase<M>(M);
-impl<IN, M> Mapper<IN> for Lowercase<M>
+impl<IN, M> Matcher<IN> for Lowercase<M>
 where
     IN: AsRef<[u8]> + ?Sized,
-    M: Mapper<[u8]>,
+    M: Matcher<[u8]>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &IN) -> M::Out {
+    fn matches(&mut self, input: &IN) -> bool {
         use bstr::ByteSlice;
-        self.0.map(&input.as_ref().to_lowercase())
+        self.0.matches(&input.as_ref().to_lowercase())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Lowercase")
-            .field(&mapper_name(&self.0))
+            .field(&matcher_name(&self.0))
             .finish()
     }
 }
 
-// Fn(T) -> bool implements Mapper<T>
-impl<IN, F> Mapper<IN> for F
+// Fn(T) -> bool implements Matcher<T>
+impl<IN, F> Matcher<IN> for F
 where
     F: Fn(&IN) -> bool + Send,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &IN) -> bool {
+    fn matches(&mut self, input: &IN) -> bool {
         self(input)
     }
 
@@ -555,7 +526,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request with a header `x-foobar=value`.
 /// request::headers(contains(("x-foobar", "value")));
@@ -573,19 +544,17 @@ pub fn contains<M>(inner: M) -> Contains<M> {
 /// The `Contains` mapper returned by [contains()](fn.contains.html)
 #[derive(Debug)]
 pub struct Contains<M>(M);
-impl<M, E> Mapper<[E]> for Contains<M>
+impl<M, E> Matcher<[E]> for Contains<M>
 where
-    M: Mapper<E, Out = bool>,
+    M: Matcher<E>,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &[E]) -> bool {
-        input.iter().any(|x| self.0.map(x))
+    fn matches(&mut self, input: &[E]) -> bool {
+        input.iter().any(|x| self.0.matches(x))
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Contains")
-            .field(&mapper_name(&self.0))
+            .field(&matcher_name(&self.0))
             .finish()
     }
 }
@@ -595,7 +564,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request with a header `x-foobar` with any value.
 /// request::headers(contains(key("x-foobar")));
@@ -609,20 +578,18 @@ pub fn key<M>(inner: M) -> Key<M> {
 /// The `Key` mapper returned by [key()](fn.key.html)
 #[derive(Debug)]
 pub struct Key<M>(M);
-impl<M, K, V> Mapper<KV<K, V>> for Key<M>
+impl<M, K, V> Matcher<KV<K, V>> for Key<M>
 where
     K: ToOwned + ?Sized,
     V: ToOwned + ?Sized,
-    M: Mapper<K>,
+    M: Matcher<K>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &KV<K, V>) -> M::Out {
-        self.0.map(input.k.borrow())
+    fn matches(&mut self, input: &KV<K, V>) -> bool {
+        self.0.matches(input.k.borrow())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Key").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Key").field(&matcher_name(&self.0)).finish()
     }
 }
 
@@ -631,7 +598,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches any query parameter with the value `foobar`.
 /// request::query(url_decoded(contains(value("foobar"))));
@@ -642,40 +609,38 @@ pub fn value<M>(inner: M) -> Value<M> {
 /// The `Value` mapper returned by [value()](fn.value.html)
 #[derive(Debug)]
 pub struct Value<M>(M);
-impl<M, K, V> Mapper<KV<K, V>> for Value<M>
+impl<M, K, V> Matcher<KV<K, V>> for Value<M>
 where
     K: ToOwned + ?Sized,
     V: ToOwned + ?Sized,
-    M: Mapper<V>,
+    M: Matcher<V>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &KV<K, V>) -> M::Out {
-        self.0.map(input.v.borrow())
+    fn matches(&mut self, input: &KV<K, V>) -> bool {
+        self.0.matches(input.v.borrow())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Value").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Value")
+            .field(&matcher_name(&self.0))
+            .finish()
     }
 }
 
-impl<K, V, KMapper, VMapper> Mapper<KV<K, V>> for (KMapper, VMapper)
+impl<K, V, KMatcher, VMatcher> Matcher<KV<K, V>> for (KMatcher, VMatcher)
 where
     K: ToOwned + ?Sized,
     V: ToOwned + ?Sized,
-    KMapper: Mapper<K, Out = bool>,
-    VMapper: Mapper<V, Out = bool>,
+    KMatcher: Matcher<K>,
+    VMatcher: Matcher<V>,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &KV<K, V>) -> bool {
-        self.0.map(input.k.borrow()) && self.1.map(input.v.borrow())
+    fn matches(&mut self, input: &KV<K, V>) -> bool {
+        self.0.matches(input.k.borrow()) && self.1.matches(input.v.borrow())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("")
-            .field(&mapper_name(&self.0))
-            .field(&mapper_name(&self.1))
+            .field(&matcher_name(&self.0))
+            .field(&matcher_name(&self.1))
             .finish()
     }
 }
@@ -685,7 +650,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a header `x-foobar` and the value has the length of 3.
 /// request::headers(contains(("x-foobar", len(eq(3)))));
@@ -702,33 +667,29 @@ pub fn len<M>(inner: M) -> Len<M> {
 /// The `Len` mapper returned by [len()](fn.len.html)
 #[derive(Debug)]
 pub struct Len<M>(M);
-impl<M, T> Mapper<[T]> for Len<M>
+impl<M, T> Matcher<[T]> for Len<M>
 where
-    M: Mapper<usize>,
+    M: Matcher<usize>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &[T]) -> M::Out {
-        self.0.map(&input.len())
+    fn matches(&mut self, input: &[T]) -> bool {
+        self.0.matches(&input.len())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Len").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Len").field(&matcher_name(&self.0)).finish()
     }
 }
 
-impl<M> Mapper<str> for Len<M>
+impl<M> Matcher<str> for Len<M>
 where
-    M: Mapper<usize>,
+    M: Matcher<usize>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &str) -> M::Out {
-        self.0.map(&input.len())
+    fn matches(&mut self, input: &str) -> bool {
+        self.0.matches(&input.len())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Len").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Len").field(&matcher_name(&self.0)).finish()
     }
 }
 
@@ -742,19 +703,16 @@ pub fn inspect<M>(inner: M) -> Inspect<M> {
 /// The `Inspect` mapper returned by [inspect()](fn.inspect.html)
 #[derive(Debug)]
 pub struct Inspect<M>(M);
-impl<IN, M> Mapper<IN> for Inspect<M>
+impl<IN, M> Matcher<IN> for Inspect<M>
 where
     IN: fmt::Debug + ?Sized,
-    M: Mapper<IN>,
-    M::Out: fmt::Debug,
+    M: Matcher<IN>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &IN) -> M::Out {
-        let output = self.0.map(input);
+    fn matches(&mut self, input: &IN) -> bool {
+        let output = self.0.matches(input);
         log::debug!(
-            "{:?}.map({:?}) == {:?}",
-            mapper_name(&self.0),
+            "{:?}.matches({:?}) == {:?}",
+            matcher_name(&self.0),
             input,
             output
         );
@@ -763,7 +721,7 @@ where
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Inspect")
-            .field(&mapper_name(&self.0))
+            .field(&matcher_name(&self.0))
             .finish()
     }
 }
@@ -775,33 +733,33 @@ mod tests {
     #[test]
     fn test_eq() {
         let mut c = eq("foo");
-        assert_eq!(false, c.map("foobar"));
-        assert_eq!(false, c.map("bazfoobar"));
-        assert_eq!(false, c.map("bar"));
-        assert_eq!(true, c.map("foo"));
+        assert_eq!(false, c.matches("foobar"));
+        assert_eq!(false, c.matches("bazfoobar"));
+        assert_eq!(false, c.matches("bar"));
+        assert_eq!(true, c.matches("foo"));
     }
 
     #[test]
     fn test_matches() {
         // regex from str
         let mut c = matches(r#"^foo\d*bar$"#);
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("foo99bar"));
-        assert_eq!(false, c.map("foo99barz"));
-        assert_eq!(false, c.map("bat"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(true, c.matches("foo99bar"));
+        assert_eq!(false, c.matches("foo99barz"));
+        assert_eq!(false, c.matches("bat"));
 
         // regex from String
         let mut c = matches(r#"^foo\d*bar$"#.to_owned());
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("foo99bar"));
-        assert_eq!(false, c.map("foo99barz"));
-        assert_eq!(false, c.map("bat"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(true, c.matches("foo99bar"));
+        assert_eq!(false, c.matches("foo99barz"));
+        assert_eq!(false, c.matches("bat"));
 
         // regex from RegexBuilder
         let mut c = matches(regex::bytes::RegexBuilder::new("foobar").case_insensitive(true));
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("FOOBAR"));
-        assert_eq!(false, c.map("FOO99BAR"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(true, c.matches("FOOBAR"));
+        assert_eq!(false, c.matches("FOO99BAR"));
 
         // regex from Regex
         let mut c = matches(
@@ -810,37 +768,37 @@ mod tests {
                 .build()
                 .unwrap(),
         );
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("FOOBAR"));
-        assert_eq!(false, c.map("FOO99BAR"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(true, c.matches("FOOBAR"));
+        assert_eq!(false, c.matches("FOO99BAR"));
     }
 
     #[test]
     fn test_not() {
         let mut c = not(matches(r#"^foo\d*bar$"#));
-        assert_eq!(false, c.map("foobar"));
-        assert_eq!(false, c.map("foo99bar"));
-        assert_eq!(true, c.map("foo99barz"));
-        assert_eq!(true, c.map("bat"));
+        assert_eq!(false, c.matches("foobar"));
+        assert_eq!(false, c.matches("foo99bar"));
+        assert_eq!(true, c.matches("foo99barz"));
+        assert_eq!(true, c.matches("bat"));
     }
 
     #[test]
     fn test_all_of() {
         let mut c = all_of![matches("foo"), matches("bar")];
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("barfoo"));
-        assert_eq!(false, c.map("foo"));
-        assert_eq!(false, c.map("bar"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(true, c.matches("barfoo"));
+        assert_eq!(false, c.matches("foo"));
+        assert_eq!(false, c.matches("bar"));
     }
 
     #[test]
     fn test_any_of() {
         let mut c = any_of![matches("foo"), matches("bar")];
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(true, c.map("barfoo"));
-        assert_eq!(true, c.map("foo"));
-        assert_eq!(true, c.map("bar"));
-        assert_eq!(false, c.map("baz"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(true, c.matches("barfoo"));
+        assert_eq!(true, c.matches("foo"));
+        assert_eq!(true, c.matches("bar"));
+        assert_eq!(false, c.matches("baz"));
     }
 
     #[test]
@@ -851,7 +809,7 @@ mod tests {
             .body("")
             .unwrap();
 
-        assert_eq!(true, c.map(&req));
+        assert_eq!(true, c.matches(&req));
     }
 
     #[test]
@@ -860,87 +818,87 @@ mod tests {
             "foo": 1,
             "bar": 99,
         })));
-        assert_eq!(true, c.map(r#"{"foo": 1, "bar": 99}"#));
-        assert_eq!(true, c.map(r#"{"bar": 99, "foo": 1}"#));
-        assert_eq!(false, c.map(r#"{"foo": 1, "bar": 100}"#));
+        assert_eq!(true, c.matches(r#"{"foo": 1, "bar": 99}"#));
+        assert_eq!(true, c.matches(r#"{"bar": 99, "foo": 1}"#));
+        assert_eq!(false, c.matches(r#"{"foo": 1, "bar": 100}"#));
     }
 
     #[test]
     fn test_lowercase() {
         let mut c = lowercase(matches("foo"));
-        assert_eq!(true, c.map("FOO"));
-        assert_eq!(true, c.map("FoOBar"));
-        assert_eq!(true, c.map("foobar"));
-        assert_eq!(false, c.map("bar"));
+        assert_eq!(true, c.matches("FOO"));
+        assert_eq!(true, c.matches("FoOBar"));
+        assert_eq!(true, c.matches("foobar"));
+        assert_eq!(false, c.matches("bar"));
     }
 
     #[test]
     fn test_fn_mapper() {
         let mut c = |input: &u64| input % 2 == 0;
-        assert_eq!(true, c.map(&6));
-        assert_eq!(true, c.map(&20));
-        assert_eq!(true, c.map(&0));
-        assert_eq!(false, c.map(&11));
+        assert_eq!(true, c.matches(&6));
+        assert_eq!(true, c.matches(&20));
+        assert_eq!(true, c.matches(&0));
+        assert_eq!(false, c.matches(&11));
     }
 
     #[test]
     fn test_contains() {
         let mut c = contains(eq(100));
-        assert_eq!(true, c.map(vec![100, 200, 300].as_slice()));
-        assert_eq!(false, c.map(vec![99, 200, 300].as_slice()));
+        assert_eq!(true, c.matches(vec![100, 200, 300].as_slice()));
+        assert_eq!(false, c.matches(vec![99, 200, 300].as_slice()));
     }
 
     #[test]
     fn test_key() {
         let kv = KV::new("key1", "value1");
-        assert_eq!(true, key("key1").map(&kv));
-        assert_eq!(false, key("key2").map(&kv));
+        assert_eq!(true, key("key1").matches(&kv));
+        assert_eq!(false, key("key2").matches(&kv));
     }
 
     #[test]
     fn test_value() {
         let kv = KV::new("key1", "value1");
-        assert_eq!(true, value("value1").map(&kv));
-        assert_eq!(false, value("value2").map(&kv));
+        assert_eq!(true, value("value1").matches(&kv));
+        assert_eq!(false, value("value2").matches(&kv));
     }
 
     #[test]
     fn test_tuple() {
         let kv = KV::new("key1", "value1");
-        assert_eq!(true, ("key1", any()).map(&kv));
-        assert_eq!(true, ("key1", "value1").map(&kv));
-        assert_eq!(false, ("key1", "value2").map(&kv));
-        assert_eq!(false, ("key2", "value1").map(&kv));
+        assert_eq!(true, ("key1", any()).matches(&kv));
+        assert_eq!(true, ("key1", "value1").matches(&kv));
+        assert_eq!(false, ("key1", "value2").matches(&kv));
+        assert_eq!(false, ("key2", "value1").matches(&kv));
     }
 
     #[test]
     fn test_len() {
         let mut c = len(eq(3));
-        assert_eq!(true, c.map("foo"));
-        assert_eq!(false, c.map("foobar"));
-        assert_eq!(true, c.map(&b"foo"[..]));
-        assert_eq!(false, c.map(&b"foobar"[..]));
+        assert_eq!(true, c.matches("foo"));
+        assert_eq!(false, c.matches("foobar"));
+        assert_eq!(true, c.matches(&b"foo"[..]));
+        assert_eq!(false, c.matches(&b"foobar"[..]));
 
         let req = http::Request::get("/test?foo=bar").body("foobar").unwrap();
-        assert!(request::body(len(eq(6))).map(&req));
+        assert!(request::body(len(eq(6))).matches(&req));
     }
 
     #[test]
     fn test_fn() {
         let mut c = len(|&len: &usize| len <= 3);
-        assert_eq!(true, c.map("f"));
-        assert_eq!(true, c.map("fo"));
-        assert_eq!(true, c.map("foo"));
-        assert_eq!(false, c.map("foob"));
-        assert_eq!(false, c.map("fooba"));
-        assert_eq!(false, c.map("foobar"));
+        assert_eq!(true, c.matches("f"));
+        assert_eq!(true, c.matches("fo"));
+        assert_eq!(true, c.matches("foo"));
+        assert_eq!(false, c.matches("foob"));
+        assert_eq!(false, c.matches("fooba"));
+        assert_eq!(false, c.matches("foobar"));
     }
 
     #[test]
     fn test_inspect() {
         let _ = pretty_env_logger::try_init();
         let mut c = inspect(lowercase(matches("^foobar$")));
-        assert_eq!(true, c.map("Foobar"));
-        assert_eq!(false, c.map("Foobar1"));
+        assert_eq!(true, c.matches("Foobar"));
+        assert_eq!(false, c.matches("Foobar1"));
     }
 }

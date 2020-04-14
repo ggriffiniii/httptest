@@ -1,6 +1,6 @@
-//! Mappers that extract information from HTTP requests.
+//! Matchers that extract information from HTTP requests.
 
-use super::{mapper_name, Mapper, KV};
+use super::{matcher_name, Matcher, KV};
 use std::fmt;
 
 /// Extract the method from the HTTP request and pass it to the next mapper.
@@ -10,19 +10,17 @@ pub fn method<M>(inner: M) -> Method<M> {
 /// The `Method` mapper returned by [method()](fn.method.html)
 #[derive(Debug)]
 pub struct Method<M>(M);
-impl<M, B> Mapper<http::Request<B>> for Method<M>
+impl<M, B> Matcher<http::Request<B>> for Method<M>
 where
-    M: Mapper<str>,
+    M: Matcher<str>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        self.0.map(input.method().as_str())
+    fn matches(&mut self, input: &http::Request<B>) -> bool {
+        self.0.matches(input.method().as_str())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Method")
-            .field(&mapper_name(&self.0))
+            .field(&matcher_name(&self.0))
             .finish()
     }
 }
@@ -32,7 +30,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a path of `/foo`.
 /// request::path("/foo");
@@ -46,18 +44,16 @@ pub fn path<M>(inner: M) -> Path<M> {
 /// The `Path` mapper returned by [path()](fn.path.html)
 #[derive(Debug)]
 pub struct Path<M>(M);
-impl<M, B> Mapper<http::Request<B>> for Path<M>
+impl<M, B> Matcher<http::Request<B>> for Path<M>
 where
-    M: Mapper<str>,
+    M: Matcher<str>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        self.0.map(input.uri().path())
+    fn matches(&mut self, input: &http::Request<B>) -> bool {
+        self.0.matches(input.uri().path())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Path").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Path").field(&matcher_name(&self.0)).finish()
     }
 }
 
@@ -66,7 +62,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request with a query parameter `foobar=value`.
 /// request::query(url_decoded(contains(("foobar", "value"))));
@@ -77,18 +73,18 @@ pub fn query<M>(inner: M) -> Query<M> {
 /// The `Query` mapper returned by [query()](fn.query.html)
 #[derive(Debug)]
 pub struct Query<M>(M);
-impl<M, B> Mapper<http::Request<B>> for Query<M>
+impl<M, B> Matcher<http::Request<B>> for Query<M>
 where
-    M: Mapper<str>,
+    M: Matcher<str>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        self.0.map(input.uri().query().unwrap_or(""))
+    fn matches(&mut self, input: &http::Request<B>) -> bool {
+        self.0.matches(input.uri().query().unwrap_or(""))
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Query").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Query")
+            .field(&matcher_name(&self.0))
+            .finish()
     }
 }
 
@@ -98,7 +94,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a request with the header `x-foobar: value`.
 /// request::headers(contains(("x-foobar", "value")));
@@ -112,13 +108,11 @@ pub fn headers<M>(inner: M) -> Headers<M> {
 /// The `Headers` mapper returned by [headers()](fn.headers.html)
 #[derive(Debug)]
 pub struct Headers<M>(M);
-impl<M, B> Mapper<http::Request<B>> for Headers<M>
+impl<M, B> Matcher<http::Request<B>> for Headers<M>
 where
-    M: Mapper<[KV<str, [u8]>]>,
+    M: Matcher<[KV<str, [u8]>]>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
+    fn matches(&mut self, input: &http::Request<B>) -> bool {
         let headers: Vec<KV<str, [u8]>> = input
             .headers()
             .iter()
@@ -127,12 +121,12 @@ where
                 v: v.as_bytes().to_owned(),
             })
             .collect();
-        self.0.map(&headers)
+        self.0.matches(&headers)
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Headers")
-            .field(&mapper_name(&self.0))
+            .field(&matcher_name(&self.0))
             .finish()
     }
 }
@@ -142,7 +136,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a body of `foobar`.
 /// request::body("foobar");
@@ -159,19 +153,17 @@ pub fn body<M>(inner: M) -> Body<M> {
 #[derive(Debug)]
 pub struct Body<M>(M);
 
-impl<M, B> Mapper<http::Request<B>> for Body<M>
+impl<M, B> Matcher<http::Request<B>> for Body<M>
 where
     B: AsRef<[u8]>,
-    M: Mapper<[u8]>,
+    M: Matcher<[u8]>,
 {
-    type Out = M::Out;
-
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        self.0.map(input.body().as_ref())
+    fn matches(&mut self, input: &http::Request<B>) -> bool {
+        self.0.matches(input.body().as_ref())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Body").field(&mapper_name(&self.0)).finish()
+        f.debug_tuple("Body").field(&matcher_name(&self.0)).finish()
     }
 }
 
@@ -182,7 +174,7 @@ where
 /// # Example
 ///
 /// ```
-/// use httptest::mappers::*;
+/// use httptest::matchers::*;
 ///
 /// // A request matcher that matches a `GET` request to `/foo`.
 /// request::method_path("GET", "/foo");
@@ -196,21 +188,19 @@ pub struct MethodPath<M, P> {
     method: M,
     path: P,
 }
-impl<M, P, B> Mapper<http::Request<B>> for MethodPath<M, P>
+impl<M, P, B> Matcher<http::Request<B>> for MethodPath<M, P>
 where
-    M: Mapper<str, Out = bool>,
-    P: Mapper<str, Out = bool>,
+    M: Matcher<str>,
+    P: Matcher<str>,
 {
-    type Out = bool;
-
-    fn map(&mut self, input: &http::Request<B>) -> M::Out {
-        self.method.map(input.method().as_str()) && self.path.map(input.uri().path())
+    fn matches(&mut self, input: &http::Request<B>) -> bool {
+        self.method.matches(input.method().as_str()) && self.path.matches(input.uri().path())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("MethodPath")
-            .field("method", &mapper_name(&self.method))
-            .field("path", &mapper_name(&self.path))
+            .field("method", &matcher_name(&self.method))
+            .field("path", &matcher_name(&self.path))
             .finish()
     }
 }
@@ -218,19 +208,19 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mappers::*;
+    use crate::matchers::*;
 
     #[test]
     fn test_path() {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(path("/foo").map(&req));
+        assert!(path("/foo").matches(&req));
 
         let req = http::Request::get("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(path("/foobar").map(&req))
+        assert!(path("/foobar").matches(&req))
     }
 
     #[test]
@@ -238,11 +228,11 @@ mod tests {
         let req = http::Request::get("https://example.com/path?foo=bar&baz=bat")
             .body("")
             .unwrap();
-        assert!(query("foo=bar&baz=bat").map(&req));
+        assert!(query("foo=bar&baz=bat").matches(&req));
         let req = http::Request::get("https://example.com/path?search=1")
             .body("")
             .unwrap();
-        assert!(query("search=1").map(&req));
+        assert!(query("search=1").matches(&req));
     }
 
     #[test]
@@ -250,11 +240,11 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(method("GET").map(&req));
+        assert!(method("GET").matches(&req));
         let req = http::Request::post("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(method("POST").map(&req));
+        assert!(method("POST").matches(&req));
     }
 
     #[test]
@@ -277,7 +267,7 @@ mod tests {
             ),
         ]);
 
-        assert!(headers(eq(expected)).map(&req));
+        assert!(headers(eq(expected)).matches(&req));
     }
 
     #[test]
@@ -285,7 +275,7 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("my request body")
             .unwrap();
-        assert!(body("my request body").map(&req));
+        assert!(body("my request body").matches(&req));
     }
 
     #[test]
@@ -293,15 +283,15 @@ mod tests {
         let req = http::Request::get("https://example.com/foo")
             .body("")
             .unwrap();
-        assert!(method_path("GET", "/foo").map(&req));
-        assert!(!method_path("POST", "/foo").map(&req));
-        assert!(!method_path("GET", "/").map(&req));
+        assert!(method_path("GET", "/foo").matches(&req));
+        assert!(!method_path("POST", "/foo").matches(&req));
+        assert!(!method_path("GET", "/").matches(&req));
 
         let req = http::Request::post("https://example.com/foobar")
             .body("")
             .unwrap();
-        assert!(method_path("POST", "/foobar").map(&req));
-        assert!(!method_path("GET", "/foobar").map(&req));
-        assert!(!method_path("POST", "/").map(&req));
+        assert!(method_path("POST", "/foobar").matches(&req));
+        assert!(!method_path("GET", "/foobar").matches(&req));
+        assert!(!method_path("POST", "/").matches(&req));
     }
 }

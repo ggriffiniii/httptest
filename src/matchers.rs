@@ -775,6 +775,19 @@ where
     }
 }
 
+impl<M> Matcher<bstr::BStr> for Len<M>
+where
+    M: Matcher<usize>,
+{
+    fn matches(&mut self, input: &bstr::BStr, ctx: &mut ExecutionContext) -> bool {
+        ctx.chain(&mut self.0, &input.len())
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Len").field(&matcher_name(&self.0)).finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

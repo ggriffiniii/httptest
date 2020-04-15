@@ -110,15 +110,16 @@ pub fn headers<M>(inner: M) -> Headers<M> {
 pub struct Headers<M>(M);
 impl<M, B> Matcher<http::Request<B>> for Headers<M>
 where
-    M: Matcher<[KV<str, [u8]>]>,
+    M: Matcher<[KV<str, bstr::BStr>]>,
 {
     fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
-        let headers: Vec<KV<str, [u8]>> = input
+        use bstr::{BStr, ByteSlice};
+        let headers: Vec<KV<str, BStr>> = input
             .headers()
             .iter()
             .map(|(k, v)| KV {
                 k: k.as_str().to_owned(),
-                v: v.as_bytes().to_owned(),
+                v: v.as_bytes().as_bstr().to_owned(),
             })
             .collect();
         ctx.chain(&mut self.0, &headers)
@@ -156,10 +157,11 @@ pub struct Body<M>(M);
 impl<M, B> Matcher<http::Request<B>> for Body<M>
 where
     B: AsRef<[u8]>,
-    M: Matcher<[u8]>,
+    M: Matcher<bstr::BStr>,
 {
     fn matches(&mut self, input: &http::Request<B>, ctx: &mut ExecutionContext) -> bool {
-        ctx.chain(&mut self.0, input.body().as_ref())
+        use bstr::ByteSlice;
+        ctx.chain(&mut self.0, input.body().as_ref().as_bstr())
     }
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -259,9 +261,10 @@ mod tests {
 
     #[test]
     fn test_headers() {
+        use bstr::{ByteSlice, B};
         let expected = vec![
-            KV::new("host", &b"example.com"[..]),
-            KV::new("content-length", b"101"),
+            KV::new("host", B("example.com").as_bstr()),
+            KV::new("content-length", B("101").as_bstr()),
         ];
         let mut req = http::Request::get("https://example.com/path?key%201=value%201&key2")
             .body("")

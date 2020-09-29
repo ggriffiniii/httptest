@@ -491,7 +491,7 @@ where
     M: Matcher<[KV<str, str>]>,
 {
     fn matches(&mut self, input: &IN, ctx: &mut ExecutionContext) -> bool {
-        let decoded: Vec<KV<str, str>> = url::form_urlencoded::parse(input.as_ref())
+        let decoded: Vec<KV<str, str>> = form_urlencoded::parse(input.as_ref())
             .into_owned()
             .map(|(k, v)| KV { k, v })
             .collect();

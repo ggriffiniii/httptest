@@ -67,6 +67,7 @@ impl ServerPool {
     }
 }
 
+#[allow(clippy::mutex_atomic)]
 #[derive(Debug)]
 struct InnerPool {
     servers_created: Mutex<usize>,
@@ -74,6 +75,7 @@ struct InnerPool {
     servers_rx: crossbeam_channel::Receiver<Server>,
 }
 
+#[allow(clippy::mutex_atomic)]
 impl InnerPool {
     fn new(max_capacity: usize) -> Self {
         assert!(max_capacity > 0);
@@ -116,6 +118,7 @@ impl InnerPool {
     }
 }
 
+#[allow(clippy::mutex_atomic)]
 impl Drop for InnerPool {
     fn drop(&mut self) {
         // wait for all created servers to get returned to the pool.

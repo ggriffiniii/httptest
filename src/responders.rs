@@ -125,9 +125,7 @@ where
             resp
         }
         let mut builder = http::Response::builder();
-        builder = builder
-            .status(self.status().clone())
-            .version(self.version().clone());
+        builder = builder.status(self.status()).version(self.version());
         *builder.headers_mut().unwrap() = self.headers().clone();
         let resp = builder.body(self.body().clone().into()).unwrap();
 

@@ -1,0 +1,40 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  lints:
+    name: Format & Clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          profile: minimal
+          overwrite: true
+
+      - run: cargo fmt -- --check
+      - run: cargo clippy
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          overwrite: true
+
+      - run: cargo test

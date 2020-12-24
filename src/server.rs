@@ -61,9 +61,8 @@ impl Server {
         // Then bind and serve...
         let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
         let join_handle = std::thread::spawn(move || {
-            let mut runtime = tokio::runtime::Builder::new()
-                .threaded_scheduler()
-                .core_threads(1)
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
                 .enable_all()
                 .build()
                 .unwrap();

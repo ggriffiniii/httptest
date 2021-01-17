@@ -127,7 +127,7 @@ pub fn delay_for<R: Responder>(delay: Duration, and_then: R) -> Delay<R> {
     Delay { delay, and_then }
 }
 
-impl<R: 'static + Responder> Responder for Delay<R> {
+impl<R: Responder> Responder for Delay<R> {
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,

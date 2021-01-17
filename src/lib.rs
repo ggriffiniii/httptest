@@ -338,6 +338,10 @@ macro_rules! vec_of_boxes {
     ($($x:expr,)*) => ($crate::vec_of_boxes![$($x),*]);
 }
 
+// re-exports of types from dependent crates that show up in the public api.
+pub use http;
+pub use bytes;
+
 mod into_times;
 pub mod matchers;
 pub mod responders;

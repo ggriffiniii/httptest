@@ -1,6 +1,16 @@
 //! Responder implementations.
 //!
 //! Reponders determine how the server will respond.
+//!
+//! Notable types that implement responder are
+//! * `ResponseBuilder`
+//!   * The `ResponseBuilder` can be constructed via the `status_code` function, and
+//!     has convenience methods to modify the response further.
+//! * `http::Response<String>` or `http::Response<Vec<u8>>`
+//! * A function that returns a Responder.
+//!   * The function is allowed to make arbitrary blocking calls like
+//!     std::thread::sleep or reading from a file without impacting concurrent
+//!     connections to the server.
 
 use std::convert::TryInto;
 use std::fmt;
@@ -123,7 +133,7 @@ pub struct Delay<R: Responder> {
 /// respond with the given responder after a delay
 ///
 /// This is useful for testing request timeouts.
-pub fn delay_for<R: Responder>(delay: Duration, and_then: R) -> Delay<R> {
+pub fn delay_and_then<R: Responder>(delay: Duration, and_then: R) -> Delay<R> {
     Delay { delay, and_then }
 }
 

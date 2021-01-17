@@ -181,12 +181,12 @@ async fn test_respond_with_fn() {
 }
 
 #[tokio::test]
-async fn test_delay_for() {
+async fn test_delay_and_then() {
     let _ = pretty_env_logger::try_init();
 
     let server = httptest::Server::run();
     let delay = std::time::Duration::from_millis(100);
-    server.expect(Expectation::matching(any()).respond_with(delay_for(delay, status_code(200))));
+    server.expect(Expectation::matching(any()).respond_with(delay_and_then(delay, status_code(200))));
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200
     let client = hyper::Client::new();

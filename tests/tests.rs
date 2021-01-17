@@ -181,6 +181,25 @@ async fn test_respond_with_fn() {
 }
 
 #[tokio::test]
+async fn test_delay_for() {
+    let _ = pretty_env_logger::try_init();
+
+    let server = httptest::Server::run();
+    let delay = std::time::Duration::from_millis(100);
+    server.expect(Expectation::matching(any()).respond_with(delay_for(delay, status_code(200))));
+
+    // Issue the GET /foo?key=value to the server and verify it returns a 200
+    let client = hyper::Client::new();
+    let now = std::time::Instant::now();
+    let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
+    let elapsed = now.elapsed();
+    assert_eq!(200, resp.status().as_u16());
+    assert!(elapsed >= delay);
+
+    // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
+}
+
+#[tokio::test]
 async fn test_custom_json() {
     use httptest::{matchers::*, responders::*, Expectation, Server};
     use serde_json::json;

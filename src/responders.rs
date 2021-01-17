@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::time::Duration;
 
 // import the cycle macro so that it's available if people glob import this module.
 #[doc(inline)]
@@ -110,6 +111,34 @@ where
         req: &'a http::Request<bytes::Bytes>,
     ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
         self.0.respond(req)
+    }
+}
+
+/// Responder that delays the embedded response
+pub struct Delay<R: Responder> {
+    delay: Duration,
+    and_then: R,
+}
+
+/// respond with the given responder after a delay
+///
+/// This is useful for testing request timeouts.
+pub fn delay_for<R: Responder>(delay: Duration, and_then: R) -> Delay<R> {
+    Delay { delay, and_then }
+}
+
+impl<R: 'static + Responder> Responder for Delay<R> {
+    fn respond<'a>(
+        &mut self,
+        req: &'a http::Request<bytes::Bytes>,
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+        let resp = self.and_then.respond(req);
+        let delay = self.delay;
+
+        Box::pin(async move {
+            tokio::time::sleep(delay).await;
+            resp.await
+        })
     }
 }
 

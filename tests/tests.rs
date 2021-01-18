@@ -186,7 +186,8 @@ async fn test_delay_and_then() {
 
     let server = httptest::Server::run();
     let delay = std::time::Duration::from_millis(100);
-    server.expect(Expectation::matching(any()).respond_with(delay_and_then(delay, status_code(200))));
+    server
+        .expect(Expectation::matching(any()).respond_with(delay_and_then(delay, status_code(200))));
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200
     let client = hyper::Client::new();

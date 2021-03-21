@@ -46,6 +46,21 @@ async fn test_expectation_cardinality_not_reached() {
 
 #[tokio::test]
 #[should_panic]
+async fn test_expectation_cardinality_not_reached_explicit_verify() {
+    let _ = pretty_env_logger::try_init();
+
+    // Setup a server to expect a single GET /foo request.
+    let mut server = httptest::Server::run();
+    server.expect(
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .respond_with(status_code(200)),
+    );
+
+    server.verify_and_clear();
+}
+
+#[tokio::test]
+#[should_panic]
 async fn test_expectation_cardinality_exceeded() {
     let _ = pretty_env_logger::try_init();
 

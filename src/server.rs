@@ -120,12 +120,12 @@ impl Server {
     /// Verify all registered expectations. Panic if any are not met, then clear
     /// all expectations leaving the server running in a clean state.
     pub fn verify_and_clear(&mut self) {
-        let mut state = self.state.lock();
+        let state = self.state.lock();
         if std::thread::panicking() {
             // If the test is already panicking don't double panic on drop.
-            state.expected.clear();
             return;
         }
+        let mut state = state.expect("mutex poisoned");
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(format!(
@@ -159,7 +159,7 @@ impl Drop for Server {
 
 async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::Body> {
     let response_future = {
-        let mut state = state.lock();
+        let mut state = state.lock().expect("mutex poisoned");
         // Iterate over expectations in reverse order. Expectations are
         // evaluated most recently added first.
         match state.find_expectation(&req) {
@@ -281,12 +281,12 @@ impl ExpectationBuilder {
 struct ServerState(Arc<Mutex<ServerStateInner>>);
 
 impl ServerState {
-    fn lock(&self) -> std::sync::MutexGuard<ServerStateInner> {
-        self.0.lock().expect("mutex poisoned")
+    fn lock(&self) -> std::sync::LockResult<std::sync::MutexGuard<'_, ServerStateInner>> {
+        self.0.lock()
     }
 
     fn push_expectation(&self, expectation: Expectation) {
-        let mut inner = self.lock();
+        let mut inner = self.lock().expect("mutex poisoned");
         inner.expected.push(expectation);
     }
 }

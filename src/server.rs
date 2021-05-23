@@ -144,12 +144,12 @@ impl Server {
         let mut state = state.expect("mutex poisoned");
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
-                panic!(format!(
+                panic!(
                     "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
                     matcher_name(&*expectation.matcher),
                     expectation.hit_count,
                     RangeDisplay(expectation.times),
-                ));
+                );
             }
         }
         if !state.unexpected_requests.is_empty() {

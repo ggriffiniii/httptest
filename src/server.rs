@@ -1,5 +1,10 @@
 use crate::matchers::{matcher_name, ExecutionContext, Matcher};
 use crate::responders::Responder;
+use futures::future::FutureExt;
+use hyper::{
+    service::{make_service_fn, service_fn},
+    Error,
+};
 use std::fmt;
 use std::future::Future;
 use std::net::SocketAddr;
@@ -20,17 +25,29 @@ pub struct Server {
 }
 
 impl Server {
-    /// Start a server.
+    /// Start a IPv4 server.
     ///
     /// The server will run in the background. On Drop it will terminate and
     /// assert it's expectations.
     pub fn run() -> Self {
-        use futures::future::FutureExt;
-        use hyper::{
-            service::{make_service_fn, service_fn},
-            Error,
-        };
         let bind_addr = ([127, 0, 0, 1], 0).into();
+        Self::from_addr(bind_addr)
+    }
+
+    /// Start a IPv6 server.
+    ///
+    /// The server will run in the background. On Drop it will terminate and
+    /// assert it's expectations.
+    pub fn run_ipv6() -> Self {
+        let bind_addr = ([0, 0, 0, 0, 0, 0, 0, 1], 0).into();
+        Self::from_addr(bind_addr)
+    }
+
+    /// Start a server bound to an address specified by `bind_addr`.
+    ///
+    /// The server will run in the background. On Drop it will terminate and
+    /// assert it's expectations.
+    pub fn from_addr(bind_addr: SocketAddr) -> Self {
         // And a MakeService to handle each connection...
         let state = ServerState::default();
         let make_service = make_service_fn({

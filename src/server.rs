@@ -25,29 +25,65 @@ pub struct Server {
 }
 
 impl Server {
-    /// Start a IPv4 server.
+    /// Start a server binding to IPv6 first and falling back to IPv4.
     ///
     /// The server will run in the background. On Drop it will terminate and
     /// assert it's expectations.
     pub fn run() -> Self {
-        let bind_addr = ([127, 0, 0, 1], 0).into();
-        Self::from_addr(bind_addr)
-    }
+        let ipv6_bind_addr = ([0, 0, 0, 0, 0, 0, 0, 1], 0).into();
+        let ipv4_bind_addr = ([127, 0, 0, 1], 0).into();
 
-    /// Start a IPv6 server.
-    ///
-    /// The server will run in the background. On Drop it will terminate and
-    /// assert it's expectations.
-    pub fn run_ipv6() -> Self {
-        let bind_addr = ([0, 0, 0, 0, 0, 0, 0, 1], 0).into();
-        Self::from_addr(bind_addr)
+        let state = ServerState::default();
+        let make_service = make_service_fn({
+            let state = state.clone();
+            move |_| {
+                let state = state.clone();
+                async move {
+                    let state = state.clone();
+                    Ok::<_, Error>(service_fn({
+                        move |req: http::Request<hyper::Body>| {
+                            let state = state.clone();
+                            async move { process_request(state, req).await }
+                        }
+                    }))
+                }
+            }
+        });
+        let (addr_tx, addr_rx) = crossbeam_channel::unbounded();
+        // Then bind and serve...
+        let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
+        let join_handle = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async move {
+                let server = hyper::Server::try_bind(&ipv6_bind_addr)
+                    .unwrap_or_else(|_| hyper::Server::bind(&ipv4_bind_addr))
+                    .serve(make_service);
+
+                addr_tx.send(server.local_addr()).unwrap();
+                futures::select! {
+                    _ = server.fuse() => {},
+                    _ = shutdown_received.fuse() => {},
+                }
+            });
+        });
+        let addr = addr_rx.recv().unwrap();
+        Server {
+            trigger_shutdown: Some(trigger_shutdown),
+            join_handle: Some(join_handle),
+            addr,
+            state,
+        }
     }
 
     /// Start a server bound to an address specified by `bind_addr`.
     ///
     /// The server will run in the background. On Drop it will terminate and
     /// assert it's expectations.
-    pub fn from_addr(bind_addr: SocketAddr) -> Self {
+    pub fn run_http(bind_addr: SocketAddr) -> Self {
         // And a MakeService to handle each connection...
         let state = ServerState::default();
         let make_service = make_service_fn({
@@ -59,16 +95,7 @@ impl Server {
                     Ok::<_, Error>(service_fn({
                         move |req: http::Request<hyper::Body>| {
                             let state = state.clone();
-                            async move {
-                                // read the full body into memory prior to handing it to matchers.
-                                let (head, body) = req.into_parts();
-                                let full_body = hyper::body::to_bytes(body).await?;
-                                let req = http::Request::from_parts(head, full_body);
-                                log::debug!("Received Request: {:?}", req);
-                                let resp = on_req(state, req).await;
-                                log::debug!("Sending Response: {:?}", resp);
-                                hyper::Result::Ok(resp)
-                            }
+                            async move { process_request(state, req).await }
                         }
                     }))
                 }
@@ -171,6 +198,20 @@ impl Drop for Server {
         let _ = self.join_handle.take().unwrap().join();
         self.verify_and_clear();
     }
+}
+
+async fn process_request(
+    state: ServerState,
+    req: hyper::Request<hyper::Body>,
+) -> hyper::Result<http::Response<hyper::Body>> {
+    // read the full body into memory prior to handing it to matchers.
+    let (head, body) = req.into_parts();
+    let full_body = hyper::body::to_bytes(body).await?;
+    let req = http::Request::from_parts(head, full_body);
+    log::debug!("Received Request: {:?}", req);
+    let resp = on_req(state, req).await;
+    log::debug!("Sending Response: {:?}", resp);
+    hyper::Result::Ok(resp)
 }
 
 async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::Body> {

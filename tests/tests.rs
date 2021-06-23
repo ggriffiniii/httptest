@@ -336,7 +336,7 @@ async fn test_server_run_http() {
     let bind_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
 
     // Setup a server to expect a single GET /foo request.
-    let server = httptest::Server::run_http(bind_addr);
+    let server = httptest::Server::run_http(bind_addr).unwrap();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
             .respond_with(status_code(200)),

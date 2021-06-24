@@ -1,5 +1,5 @@
 use httptest::{matchers::*, responders::*, Expectation};
-use std::future::Future;
+use std::{future::Future, net::SocketAddr};
 
 async fn read_response_body(
     resp_fut: impl Future<Output = Result<hyper::Response<hyper::Body>, hyper::Error>>,
@@ -327,4 +327,25 @@ async fn test_readme() {
 fn test_outside_of_tokio_context() {
     let _ = pretty_env_logger::try_init();
     let _server = httptest::Server::run();
+}
+
+#[tokio::test]
+async fn test_server_run_http() {
+    let _ = pretty_env_logger::try_init();
+
+    let bind_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+
+    // Setup a server to expect a single GET /foo request.
+    let server = httptest::Server::run_http(bind_addr).unwrap();
+    server.expect(
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .respond_with(status_code(200)),
+    );
+
+    // Issue the GET /foo to the server and verify it returns a 200.
+    let client = hyper::Client::new();
+    let resp = read_response_body(client.get(server.url("/foo"))).await;
+    assert_eq!(200, resp.status().as_u16());
+
+    // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
 }

@@ -348,5 +348,5 @@ pub mod responders;
 mod server;
 mod server_pool;
 
-pub use server::{Expectation, ExpectationBuilder, Server};
+pub use server::{Expectation, ExpectationBuilder, Server, ServerBuilder};
 pub use server_pool::{ServerHandle, ServerPool};

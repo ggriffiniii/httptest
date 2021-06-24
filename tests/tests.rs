@@ -330,13 +330,16 @@ fn test_outside_of_tokio_context() {
 }
 
 #[tokio::test]
-async fn test_server_run_http() {
+async fn test_server_custom() {
     let _ = pretty_env_logger::try_init();
 
     let bind_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
 
     // Setup a server to expect a single GET /foo request.
-    let server = httptest::Server::run_http(bind_addr).unwrap();
+    let server = httptest::ServerBuilder::new()
+        .bind_addr(bind_addr)
+        .run()
+        .unwrap();
     server.expect(
         Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
             .respond_with(status_code(200)),

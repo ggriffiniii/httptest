@@ -25,69 +25,12 @@ pub struct Server {
 }
 
 impl Server {
-    /// Start a server binding to IPv6 first and falling back to IPv4.
+    /// Start a server, panicking if unable to start.
     ///
     /// The server will run in the background. On Drop it will terminate and
     /// assert it's expectations.
     pub fn run() -> Self {
-        let ipv6_bind_addr: SocketAddr = ([0, 0, 0, 0, 0, 0, 0, 1], 0).into();
-        let ipv4_bind_addr: SocketAddr = ([127, 0, 0, 1], 0).into();
-
-        Self::run_http(ipv6_bind_addr).unwrap_or_else(|_| Self::run_http(ipv4_bind_addr).unwrap())
-    }
-
-    /// Start a server bound to an address specified by `bind_addr`.
-    ///
-    /// The server will run in the background. On Drop it will terminate and
-    /// assert it's expectations.
-    pub fn run_http(bind_addr: SocketAddr) -> std::io::Result<Self> {
-        // And a MakeService to handle each connection...
-        let state = ServerState::default();
-        let make_service = make_service_fn({
-            let state = state.clone();
-            move |_| {
-                let state = state.clone();
-                async move {
-                    let state = state.clone();
-                    Ok::<_, Error>(service_fn({
-                        move |req: http::Request<hyper::Body>| {
-                            let state = state.clone();
-                            async move { process_request(state, req).await }
-                        }
-                    }))
-                }
-            }
-        });
-
-        let listener = TcpListener::bind(bind_addr)?;
-        let addr = listener.local_addr()?;
-
-        // Then bind and serve...
-        let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
-        let join_handle = std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(1)
-                .enable_all()
-                .build()
-                .unwrap();
-
-            runtime.block_on(async move {
-                let server = hyper::Server::from_tcp(listener)
-                    .unwrap()
-                    .serve(make_service);
-                futures::select! {
-                    _ = server.fuse() => {},
-                    _ = shutdown_received.fuse() => {},
-                }
-            });
-        });
-
-        Ok(Server {
-            trigger_shutdown: Some(trigger_shutdown),
-            join_handle: Some(join_handle),
-            addr,
-            state,
-        })
+        ServerBuilder::new().run().unwrap()
     }
 
     /// Get the address the server is listening on.
@@ -389,6 +332,93 @@ impl fmt::Display for RangeDisplay {
                 write!(f, "Between({}..={})", min, max)
             }
             (MyBound::Unbounded, MyBound::Unbounded) => write!(f, "Any"),
+        }
+    }
+}
+
+/// Custom Server Builder.
+pub struct ServerBuilder {
+    bind_addr: Option<SocketAddr>,
+}
+
+impl ServerBuilder {
+    /// Create a new ServerBuilder. By default the server will listen on ipv6
+    /// loopback if available and fallback to ipv4 loopback if unable to bind to
+    /// ipv6.
+    pub fn new() -> ServerBuilder {
+        ServerBuilder { bind_addr: None }
+    }
+
+    /// Specify the address the server should listen on.
+    pub fn bind_addr(self, bind_addr: SocketAddr) -> ServerBuilder {
+        ServerBuilder {
+            bind_addr: Some(bind_addr),
+            ..self
+        }
+    }
+
+    /// Start a server.
+    ///
+    /// The server will run in the background. On Drop it will terminate and
+    /// assert it's expectations.
+    pub fn run(self) -> std::io::Result<Server> {
+        // And a MakeService to handle each connection...
+        let state = ServerState::default();
+        let make_service = make_service_fn({
+            let state = state.clone();
+            move |_| {
+                let state = state.clone();
+                async move {
+                    let state = state.clone();
+                    Ok::<_, Error>(service_fn({
+                        move |req: http::Request<hyper::Body>| {
+                            let state = state.clone();
+                            async move { process_request(state, req).await }
+                        }
+                    }))
+                }
+            }
+        });
+
+        let listener = Self::listener(self.bind_addr)?;
+        let addr = listener.local_addr()?;
+
+        // Then bind and serve...
+        let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
+        let join_handle = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_all()
+                .build()
+                .unwrap();
+
+            runtime.block_on(async move {
+                let server = hyper::Server::from_tcp(listener)
+                    .unwrap()
+                    .serve(make_service);
+                futures::select! {
+                    _ = server.fuse() => {},
+                    _ = shutdown_received.fuse() => {},
+                }
+            });
+        });
+
+        Ok(Server {
+            trigger_shutdown: Some(trigger_shutdown),
+            join_handle: Some(join_handle),
+            addr,
+            state,
+        })
+    }
+
+    fn listener(bind_addr: Option<SocketAddr>) -> std::io::Result<TcpListener> {
+        match bind_addr {
+            Some(addr) => TcpListener::bind(addr),
+            None => {
+                let ipv6_bind_addr: SocketAddr = ([0, 0, 0, 0, 0, 0, 0, 1], 0).into();
+                let ipv4_bind_addr: SocketAddr = ([127, 0, 0, 1], 0).into();
+                TcpListener::bind(ipv6_bind_addr).or_else(|_| TcpListener::bind(ipv4_bind_addr))
+            }
         }
     }
 }

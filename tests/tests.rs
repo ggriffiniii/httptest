@@ -1,4 +1,4 @@
-use httptest::{matchers::*, responders::*, Expectation};
+use httptest::{matchers::*, responders::*, Expectation, ExpectationBuilder};
 use std::{future::Future, net::SocketAddr};
 
 async fn read_response_body(
@@ -351,4 +351,11 @@ async fn test_server_custom() {
     assert_eq!(200, resp.status().as_u16());
 
     // The Drop impl of the server will assert that all expectations were satisfied or else it will panic.
+}
+
+// compile test to ensure users of the library can write wrappers for
+// ExpectationBuilder that is generic over IntoTimes.
+#[allow(unused)]
+fn times_wrapper(times: impl httptest::IntoTimes) -> ExpectationBuilder {
+    Expectation::matching(request::method("POST")).times(times)
 }

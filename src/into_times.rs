@@ -4,15 +4,22 @@ use std::ops::{
 
 /// How many times is an expectation expected to occur.
 /// Implemented for usize and any range of usize values.
-pub trait IntoTimes {
+pub trait IntoTimes: Sealed {
+    /// Provide the lower and upper bounds.
     fn into_times(self) -> (Bound<usize>, Bound<usize>);
 }
+
+/// Sealed is not exposed publicly so IntoTimes can be referenced, but not
+/// implemented outside this crate.
+pub trait Sealed {}
 
 impl IntoTimes for usize {
     fn into_times(self) -> (Bound<usize>, Bound<usize>) {
         (Bound::Included(self), Bound::Included(self))
     }
 }
+
+impl Sealed for usize {}
 
 macro_rules! impl_into_times {
     ($range_ty:ty) => {
@@ -31,6 +38,7 @@ macro_rules! impl_into_times {
                 )
             }
         }
+        impl Sealed for $range_ty {}
     };
 }
 

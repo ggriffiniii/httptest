@@ -348,5 +348,6 @@ pub mod responders;
 mod server;
 mod server_pool;
 
+pub use into_times::IntoTimes;
 pub use server::{Expectation, ExpectationBuilder, Server, ServerBuilder};
 pub use server_pool::{ServerHandle, ServerPool};

@@ -353,7 +353,6 @@ impl ServerBuilder {
     pub fn bind_addr(self, bind_addr: SocketAddr) -> ServerBuilder {
         ServerBuilder {
             bind_addr: Some(bind_addr),
-            ..self
         }
     }
 

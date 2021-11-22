@@ -243,6 +243,20 @@ where
     }
 }
 
+/// A Vec<u8> is an implicit Eq mapper.
+impl<IN> Matcher<IN> for Vec<u8>
+where
+    IN: AsRef<[u8]> + ?Sized,
+{
+    fn matches(&mut self, input: &IN, _ctx: &mut ExecutionContext) -> bool {
+        self.as_slice() == input.as_ref()
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as fmt::Debug>::fmt(self, f)
+    }
+}
+
 /// Create a regex.
 ///
 /// This trait may panic if the regex failed to build.

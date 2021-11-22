@@ -289,6 +289,10 @@ mod tests {
             .body("my request body")
             .unwrap();
         assert!(eval(&mut body("my request body"), &req));
+        let bytes: &[u8] = &b"my request body"[..];
+        assert!(eval(&mut body(bytes), &req));
+        let v: Vec<u8> = "my request body".to_string().into_bytes();
+        assert!(eval(&mut body(v), &req));
     }
 
     #[test]

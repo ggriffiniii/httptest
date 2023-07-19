@@ -135,7 +135,7 @@ concurrency of the test suite to two tests at a time. The first two tests to exe
 `get_server()` will be handed servers without blocking, the 3rd test will block
 in `get_server()` until one of the first 2 tests complete.
 
-# Defining Expecations
+# Defining Expectations
 
 Every expecation defines a request matcher, a defintion of the number of
 times it's expected to be called, and what it should respond with.

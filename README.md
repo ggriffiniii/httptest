@@ -17,7 +17,7 @@ running http server. The typical usage is as follows:
 ```rust
 #[tokio::test]
 async fn test_readme() {
-    use httptest::{mappers::*, responders::*, Expectation, Server};
+    use httptest::{matchers::*, responders::*, Expectation, Server};
     use serde_json::json;
     // Starting a logger within the test can make debugging a failed test
     // easier. The mock http server will log::debug every request and response

@@ -68,12 +68,14 @@ impl Server {
     /// Verify all registered expectations. Panic if any are not met, then clear
     /// all expectations leaving the server running in a clean state.
     pub fn verify_and_clear(&mut self) {
-        let state = self.state.lock();
+        let state = {
+            let mut state = self.state.lock().expect("mutex poisoned");
+            std::mem::take(&mut *state) // reset server to default state.
+        };
         if std::thread::panicking() {
             // If the test is already panicking don't double panic on drop.
             return;
         }
-        let mut state = state.expect("mutex poisoned");
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(
@@ -90,8 +92,6 @@ impl Server {
                 &state.unexpected_requests
             );
         }
-        // reset the server back to default state.
-        *state = ServerStateInner::default();
     }
 }
 

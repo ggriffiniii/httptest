@@ -1,4 +1,4 @@
-use httptest::{matchers::*, responders::*, Expectation, ExpectationBuilder};
+use httptest::{matchers::*, responders::*, Expectation, ExpectationBuilder, ServerPool};
 use std::{future::Future, net::SocketAddr};
 
 async fn read_response_body(
@@ -358,4 +358,29 @@ async fn test_server_custom() {
 #[allow(unused)]
 fn times_wrapper(times: impl httptest::IntoTimes) -> ExpectationBuilder {
     Expectation::matching(request::method("POST")).times(times)
+}
+
+// ensure that the state of a server in a ServerPool is always reset when the handle is dropped.
+// Even when panicking.
+#[test]
+fn test_server_pool_expectations_are_cleared_on_panic() {
+    let _ = pretty_env_logger::try_init();
+
+    // Create a pool with only 1 server.
+    static SERVER_POOL: ServerPool = ServerPool::new(1);
+
+    // Add an expectation to the server and then panic. The panic should cause the server handle to
+    // be dropped and that should clear the expecations on the server.
+    let _ = std::panic::catch_unwind(|| {
+        let server = SERVER_POOL.get_server();
+        server.expect(
+            Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+                .respond_with(status_code(200)),
+        );
+        panic!("panic without server expectation being met");
+    });
+
+    // Retrieve another handle to the same underlying server. The implicit drop of this handle
+    // should succeed because the expectation added above was cleared by the panic.
+    let _server = SERVER_POOL.get_server();
 }

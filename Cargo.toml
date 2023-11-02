@@ -11,9 +11,6 @@ homepage = "https://github.com/ggriffiniii/httptest"
 readme = "README.md"
 keywords = ["http", "test", "testing", "mock", "fake"]
 
-[package.metadata.release]
-no-dev-version = true
-
 [dependencies]
 bytes = "1.0"
 hyper = { version = "0.14", features = ["http1", "http2", "server", "tcp"] }

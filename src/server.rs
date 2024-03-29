@@ -398,9 +398,8 @@ impl ServerBuilder {
                         let state_c = state_listener.clone();
                         let (stream, _addr) = match listener.accept().await {
                             Ok(a) => a,
-                            Err(_e) => {
-                                log::warn!("listener failed to accept a new connection");
-                                continue;
+                            Err(e) => {
+                                panic!("listener failed to accept a new connection: {}", e);
                             }
                         };
 

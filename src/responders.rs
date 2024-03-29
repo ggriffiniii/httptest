@@ -28,7 +28,7 @@ pub trait Responder: Send {
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,
-    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'a>>;
 }
 
 /// Convenient ResponseBuilder that implements Responder.
@@ -114,12 +114,12 @@ where
 
 impl<B> Responder for ResponseBuilder<B>
 where
-    B: Clone + Into<hyper::Body> + Send + fmt::Debug,
+    B: Clone + Into<hyper::body::Bytes> + Send + fmt::Debug,
 {
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,
-    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'a>> {
         self.0.respond(req)
     }
 }
@@ -141,7 +141,7 @@ impl<R: Responder> Responder for Delay<R> {
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,
-    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'a>> {
         let resp = self.and_then.respond(req);
         let delay = self.delay;
 
@@ -154,13 +154,15 @@ impl<R: Responder> Responder for Delay<R> {
 
 impl<B> Responder for http::Response<B>
 where
-    B: Clone + Into<hyper::Body> + Send + fmt::Debug,
+    B: Clone + Into<hyper::body::Bytes> + Send + fmt::Debug,
 {
     fn respond<'a>(
         &mut self,
         _req: &'a http::Request<bytes::Bytes>,
-    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
-        async fn _respond(resp: http::Response<hyper::Body>) -> http::Response<hyper::Body> {
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'a>> {
+        async fn _respond(
+            resp: http::Response<hyper::body::Bytes>,
+        ) -> http::Response<hyper::body::Bytes> {
             resp
         }
         let mut builder = http::Response::builder();
@@ -181,7 +183,7 @@ where
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,
-    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'a>> {
         let mut f = self.clone();
         Box::pin(async move { tokio::task::block_in_place(|| f()).respond(req).await })
     }
@@ -199,11 +201,12 @@ pub struct Cycle {
     idx: usize,
     responders: Vec<Box<dyn Responder>>,
 }
+
 impl Responder for Cycle {
     fn respond<'a>(
         &mut self,
         req: &'a http::Request<bytes::Bytes>,
-    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'a>> {
         let idx = self.idx;
         self.idx = (self.idx + 1) % self.responders.len();
         self.responders[idx].respond(req)

@@ -1,10 +1,10 @@
 use crate::matchers::{matcher_name, ExecutionContext, Matcher};
 use crate::responders::Responder;
 use futures::future::FutureExt;
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Error,
-};
+use http_body_util::{combinators::BoxBody, BodyExt, Full};
+use hyper::service::service_fn;
+use hyper_util::{rt::TokioIo, server::conn::auto::Builder};
+use std::convert::Infallible;
 use std::fmt;
 use std::future::Future;
 use std::net::{SocketAddr, TcpListener};
@@ -107,19 +107,25 @@ impl Drop for Server {
 
 async fn process_request(
     state: ServerState,
-    req: hyper::Request<hyper::Body>,
-) -> hyper::Result<http::Response<hyper::Body>> {
+    req: hyper::Request<hyper::body::Incoming>,
+) -> hyper::Result<http::Response<BoxBody<hyper::body::Bytes, Infallible>>> {
     // read the full body into memory prior to handing it to matchers.
     let (head, body) = req.into_parts();
-    let full_body = hyper::body::to_bytes(body).await?;
-    let req = http::Request::from_parts(head, full_body);
+    let bytes = body.collect().await.unwrap().to_bytes();
+    let req = http::Request::from_parts(head, bytes);
+
     log::debug!("Received Request: {:?}", req);
     let resp = on_req(state, req).await;
-    log::debug!("Sending Response: {:?}", resp);
+
+    let (parts, body) = resp.into_parts();
+    let body = Full::new(body).boxed();
+    let resp = hyper::Response::from_parts(parts, body);
+
+    // log::debug!("Sending Response: {:?}", resp);
     hyper::Result::Ok(resp)
 }
 
-async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::Body> {
+async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::body::Bytes> {
     let response_future = {
         let mut state = state.lock().expect("mutex poisoned");
         // Iterate over expectations in reverse order. Expectations are
@@ -150,7 +156,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
     } else {
         http::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-            .body(hyper::Body::from("No matcher found"))
+            .body("No matcher found".into())
             .unwrap()
     }
 }
@@ -289,8 +295,8 @@ fn times_error(
     matcher: &dyn Matcher<FullRequest>,
     times: (Bound<usize>, Bound<usize>),
     hit_count: usize,
-) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
-    let body = hyper::Body::from(format!(
+) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'static>> {
+    let body = hyper::body::Bytes::from(format!(
         "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
         matcher_name(&*matcher),
         hit_count,
@@ -363,27 +369,21 @@ impl ServerBuilder {
     pub fn run(self) -> std::io::Result<Server> {
         // And a MakeService to handle each connection...
         let state = ServerState::default();
-        let make_service = make_service_fn({
-            let state = state.clone();
-            move |_| {
+        let service = |state: ServerState| {
+            service_fn(move |req: http::Request<hyper::body::Incoming>| {
                 let state = state.clone();
-                async move {
-                    let state = state.clone();
-                    Ok::<_, Error>(service_fn({
-                        move |req: http::Request<hyper::Body>| {
-                            let state = state.clone();
-                            async move { process_request(state, req).await }
-                        }
-                    }))
-                }
-            }
-        });
+                async move { process_request(state, req).await }
+            })
+        };
 
         let listener = Self::listener(self.bind_addr)?;
+        listener.set_nonblocking(true)?;
+
         let addr = listener.local_addr()?;
 
         // Then bind and serve...
         let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
+        let state_listener = state.clone();
         let join_handle = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(1)
@@ -392,9 +392,28 @@ impl ServerBuilder {
                 .unwrap();
 
             runtime.block_on(async move {
-                let server = hyper::Server::from_tcp(listener)
-                    .unwrap()
-                    .serve(make_service);
+                let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+                let server = async move {
+                    loop {
+                        let state_c = state_listener.clone();
+                        let (stream, _addr) = match listener.accept().await {
+                            Ok(a) => a,
+                            Err(_e) => {
+                                log::warn!("listener failed to accept a new connection");
+                                continue;
+                            }
+                        };
+
+                        let serve = async move {
+                            Builder::new(hyper_util::rt::TokioExecutor::new())
+                                .serve_connection(TokioIo::new(stream), service(state_c.clone()))
+                                .await
+                        };
+
+                        tokio::spawn(serve);
+                    }
+                };
+
                 futures::select! {
                     _ = server.fuse() => {},
                     _ = shutdown_received.fuse() => {},

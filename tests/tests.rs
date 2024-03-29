@@ -1,13 +1,19 @@
+use http_body_util::{BodyExt, Full};
 use httptest::{matchers::*, responders::*, Expectation, ExpectationBuilder, ServerPool};
+use hyper_util::client::legacy::{connect::HttpConnector, Client, Error};
 use std::{future::Future, net::SocketAddr};
 
+fn create_test_client() -> Client<HttpConnector, Full<hyper::body::Bytes>> {
+    Client::builder(hyper_util::rt::TokioExecutor::new()).build_http()
+}
+
 async fn read_response_body(
-    resp_fut: impl Future<Output = Result<hyper::Response<hyper::Body>, hyper::Error>>,
+    resp_fut: impl Future<Output = Result<hyper::Response<hyper::body::Incoming>, Error>>,
 ) -> hyper::Response<hyper::body::Bytes> {
     let resp = resp_fut.await.unwrap();
     let (head, body) = resp.into_parts();
-    let body = hyper::body::to_bytes(body).await.unwrap();
-    hyper::Response::from_parts(head, body)
+    let bytes = body.collect().await.unwrap().to_bytes();
+    hyper::Response::from_parts(head, bytes)
 }
 
 #[tokio::test]
@@ -22,7 +28,7 @@ async fn test_server() {
     );
 
     // Issue the GET /foo to the server and verify it returns a 200.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert_eq!(200, resp.status().as_u16());
 
@@ -76,7 +82,7 @@ async fn test_expectation_cardinality_exceeded() {
     );
 
     // Issue the GET /foo to the server and verify it returns a 200.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert_eq!(200, resp.status().as_u16());
 
@@ -106,7 +112,7 @@ async fn test_json() {
 
     // Issue the GET /foo to the server and verify it returns a 200 with a json
     // body matching my_data.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert_eq!(200, resp.status().as_u16());
     let body_data = serde_json::from_slice::<serde_json::Value>(resp.body()).unwrap();
@@ -131,7 +137,7 @@ async fn test_cycle() {
     );
 
     // Issue multiple GET /foo to the server and verify it alternates between 200 and 404 codes.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert_eq!(200, resp.status().as_u16());
     let resp = read_response_body(client.get(server.url("/foo"))).await;
@@ -160,7 +166,7 @@ async fn test_url_encoded() {
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200 with an
     // application/x-www-form-urlencoded body of key=value.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
     assert_eq!(200, resp.status().as_u16());
     assert_eq!(
@@ -185,7 +191,7 @@ async fn test_respond_with_fn() {
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200 with an
     // application/x-www-form-urlencoded body of key=value.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let now = std::time::Instant::now();
     let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
     let elapsed = now.elapsed();
@@ -205,7 +211,7 @@ async fn test_delay_and_then() {
         .expect(Expectation::matching(any()).respond_with(delay_and_then(delay, status_code(200))));
 
     // Issue the GET /foo?key=value to the server and verify it returns a 200
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let now = std::time::Instant::now();
     let resp = read_response_body(client.get(server.url("/foo?key=value"))).await;
     let elapsed = now.elapsed();
@@ -238,7 +244,7 @@ async fn test_custom_json() {
     );
 
     // Now test your http client against the server.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     // Issue the GET /foo to the server.
 
     // Issue a POST /bar with {'foo': 'bar'} json body.
@@ -295,7 +301,7 @@ async fn test_readme() {
     let url = server.url("/foo");
 
     // Now test your http client against the server.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     // Issue the GET /foo to the server.
     let resp = client.get(url).await.unwrap();
     // Optionally use response matchers to assert the server responded as
@@ -346,7 +352,7 @@ async fn test_server_custom() {
     );
 
     // Issue the GET /foo to the server and verify it returns a 200.
-    let client = hyper::Client::new();
+    let client = create_test_client();
     let resp = read_response_body(client.get(server.url("/foo"))).await;
     assert_eq!(200, resp.status().as_u16());
 

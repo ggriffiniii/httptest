@@ -372,7 +372,7 @@ impl ServerBuilder {
         let service = |state: ServerState| {
             service_fn(move |req: http::Request<hyper::body::Incoming>| {
                 let state = state.clone();
-                async move { process_request(state, req).await }
+                process_request(state, req)
             })
         };
 

@@ -18,7 +18,7 @@ type FullRequest = http::Request<hyper::body::Bytes>;
 /// The Server
 #[derive(Debug)]
 pub struct Server {
-    trigger_shutdown: Option<futures::channel::oneshot::Sender<()>>,
+    trigger_shutdown: Option<tokio::sync::watch::Sender<bool>>,
     join_handle: Option<std::thread::JoinHandle<()>>,
     addr: SocketAddr,
     state: ServerState,
@@ -382,7 +382,7 @@ impl ServerBuilder {
         let addr = listener.local_addr()?;
 
         // Then bind and serve...
-        let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
+        let (trigger_shutdown, mut shutdown_received) = tokio::sync::watch::channel(false);
         let state_listener = state.clone();
         let join_handle = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -392,10 +392,12 @@ impl ServerBuilder {
                 .unwrap();
 
             runtime.block_on(async move {
+                let mut connection_tasks = tokio::task::JoinSet::new();
                 let listener = tokio::net::TcpListener::from_std(listener).unwrap();
-                let server = async move {
+                let conn_shutdown_receiver = shutdown_received.clone();
+
+                let server = async {
                     loop {
-                        let state_c = state_listener.clone();
                         let (stream, _addr) = match listener.accept().await {
                             Ok(a) => a,
                             Err(e) => {
@@ -403,20 +405,30 @@ impl ServerBuilder {
                             }
                         };
 
-                        let serve = async move {
-                            Builder::new(hyper_util::rt::TokioExecutor::new())
-                                .serve_connection(TokioIo::new(stream), service(state_c.clone()))
-                                .await
-                        };
+                        let state_c = state_listener.clone();
+                        let mut conn_shutdown_receiver_c = conn_shutdown_receiver.clone();
+                        connection_tasks.spawn(async move {
+                            let builder = Builder::new(hyper_util::rt::TokioExecutor::new());
+                            let connection = builder
+                                .serve_connection(TokioIo::new(stream), service(state_c.clone()));
+                            tokio::pin!(connection);
 
-                        tokio::spawn(serve);
+                            tokio::select! {
+                                _ = connection.as_mut() => {}
+                                _ = conn_shutdown_receiver_c.changed().fuse() => {
+                                    connection.as_mut().graceful_shutdown()
+                                }
+                            };
+                        });
                     }
                 };
 
-                futures::select! {
+                tokio::select! {
                     _ = server.fuse() => {},
-                    _ = shutdown_received.fuse() => {},
+                    _ = shutdown_received.changed().fuse() => {},
                 }
+
+                while (connection_tasks.join_next().await).is_some() {}
             });
         });
 

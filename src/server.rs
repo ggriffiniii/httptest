@@ -121,7 +121,7 @@ async fn process_request(
     let body = Full::new(body).boxed();
     let resp = hyper::Response::from_parts(parts, body);
 
-    // log::debug!("Sending Response: {:?}", resp);
+    log::debug!("Sending Response: {:?}", resp);
     hyper::Result::Ok(resp)
 }
 

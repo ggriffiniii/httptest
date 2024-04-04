@@ -1,20 +1,3 @@
-# httptest
-
-[![](https://meritbadge.herokuapp.com/httptest)](https://crates.io/crates/httptest)
-[![]( https://docs.rs/httptest/badge.svg)](https://docs.rs/httptest)
-
-Provide convenient mechanism for testing http clients against a locally
-running http server. The typical usage is as follows:
-
-* Start a server
-* Configure the server by adding expectations
-* Test your http client by making requests to the server
-* On Drop the server verifies all expectations were met.
-
-
-## Example Test
-
-```rust
 #[tokio::test]
 async fn test_readme() {
     use http_body_util::{BodyExt, Full};
@@ -84,4 +67,3 @@ async fn test_readme() {
     // on Drop the server will assert all expectations have been met and will
     // panic if not.
 }
-```

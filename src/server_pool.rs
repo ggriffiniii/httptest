@@ -34,7 +34,7 @@ use std::sync::Mutex;
 ///     let server = SERVER_POOL.get_server();
 ///     server.expect(Expectation::matching(any()).respond_with(status_code(200)));
 ///     // invoke http requests to server.
-///     
+///
 ///     // server will assert expectations are met on drop.
 /// }
 ///
@@ -43,7 +43,7 @@ use std::sync::Mutex;
 ///     let server = SERVER_POOL.get_server();
 ///     server.expect(Expectation::matching(any()).respond_with(status_code(200)));
 ///     // invoke http requests to server.
-///     
+///
 ///     // server will assert expectations are met on drop.
 /// }
 /// ```

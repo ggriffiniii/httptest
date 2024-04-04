@@ -1,10 +1,10 @@
 use crate::matchers::{matcher_name, ExecutionContext, Matcher};
 use crate::responders::Responder;
 use futures::future::FutureExt;
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Error,
-};
+use http_body_util::{combinators::BoxBody, BodyExt, Full};
+use hyper::service::service_fn;
+use hyper_util::{rt::TokioIo, server::conn::auto::Builder};
+use std::convert::Infallible;
 use std::fmt;
 use std::future::Future;
 use std::net::{SocketAddr, TcpListener};
@@ -18,7 +18,7 @@ type FullRequest = http::Request<hyper::body::Bytes>;
 /// The Server
 #[derive(Debug)]
 pub struct Server {
-    trigger_shutdown: Option<futures::channel::oneshot::Sender<()>>,
+    trigger_shutdown: Option<tokio::sync::watch::Sender<bool>>,
     join_handle: Option<std::thread::JoinHandle<()>>,
     addr: SocketAddr,
     state: ServerState,
@@ -107,19 +107,25 @@ impl Drop for Server {
 
 async fn process_request(
     state: ServerState,
-    req: hyper::Request<hyper::Body>,
-) -> hyper::Result<http::Response<hyper::Body>> {
+    req: hyper::Request<hyper::body::Incoming>,
+) -> hyper::Result<http::Response<BoxBody<hyper::body::Bytes, Infallible>>> {
     // read the full body into memory prior to handing it to matchers.
     let (head, body) = req.into_parts();
-    let full_body = hyper::body::to_bytes(body).await?;
-    let req = http::Request::from_parts(head, full_body);
+    let bytes = body.collect().await.unwrap().to_bytes();
+    let req = http::Request::from_parts(head, bytes);
+
     log::debug!("Received Request: {:?}", req);
     let resp = on_req(state, req).await;
+
+    let (parts, body) = resp.into_parts();
+    let body = Full::new(body).boxed();
+    let resp = hyper::Response::from_parts(parts, body);
+
     log::debug!("Sending Response: {:?}", resp);
     hyper::Result::Ok(resp)
 }
 
-async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::Body> {
+async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::body::Bytes> {
     let response_future = {
         let mut state = state.lock().expect("mutex poisoned");
         // Iterate over expectations in reverse order. Expectations are
@@ -150,7 +156,7 @@ async fn on_req(state: ServerState, req: FullRequest) -> http::Response<hyper::B
     } else {
         http::Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
-            .body(hyper::Body::from("No matcher found"))
+            .body("No matcher found".into())
             .unwrap()
     }
 }
@@ -289,8 +295,8 @@ fn times_error(
     matcher: &dyn Matcher<FullRequest>,
     times: (Bound<usize>, Bound<usize>),
     hit_count: usize,
-) -> Pin<Box<dyn Future<Output = http::Response<hyper::Body>> + Send + 'static>> {
-    let body = hyper::Body::from(format!(
+) -> Pin<Box<dyn Future<Output = http::Response<hyper::body::Bytes>> + Send + 'static>> {
+    let body = hyper::body::Bytes::from(format!(
         "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
         matcher_name(&*matcher),
         hit_count,
@@ -363,27 +369,21 @@ impl ServerBuilder {
     pub fn run(self) -> std::io::Result<Server> {
         // And a MakeService to handle each connection...
         let state = ServerState::default();
-        let make_service = make_service_fn({
-            let state = state.clone();
-            move |_| {
+        let service = |state: ServerState| {
+            service_fn(move |req: http::Request<hyper::body::Incoming>| {
                 let state = state.clone();
-                async move {
-                    let state = state.clone();
-                    Ok::<_, Error>(service_fn({
-                        move |req: http::Request<hyper::Body>| {
-                            let state = state.clone();
-                            async move { process_request(state, req).await }
-                        }
-                    }))
-                }
-            }
-        });
+                process_request(state, req)
+            })
+        };
 
         let listener = Self::listener(self.bind_addr)?;
+        listener.set_nonblocking(true)?;
+
         let addr = listener.local_addr()?;
 
         // Then bind and serve...
-        let (trigger_shutdown, shutdown_received) = futures::channel::oneshot::channel();
+        let (trigger_shutdown, mut shutdown_received) = tokio::sync::watch::channel(false);
+        let state_listener = state.clone();
         let join_handle = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(1)
@@ -392,13 +392,43 @@ impl ServerBuilder {
                 .unwrap();
 
             runtime.block_on(async move {
-                let server = hyper::Server::from_tcp(listener)
-                    .unwrap()
-                    .serve(make_service);
-                futures::select! {
+                let mut connection_tasks = tokio::task::JoinSet::new();
+                let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+                let conn_shutdown_receiver = shutdown_received.clone();
+
+                let server = async {
+                    loop {
+                        let (stream, _addr) = match listener.accept().await {
+                            Ok(a) => a,
+                            Err(e) => {
+                                panic!("listener failed to accept a new connection: {}", e);
+                            }
+                        };
+
+                        let state_c = state_listener.clone();
+                        let mut conn_shutdown_receiver_c = conn_shutdown_receiver.clone();
+                        connection_tasks.spawn(async move {
+                            let builder = Builder::new(hyper_util::rt::TokioExecutor::new());
+                            let connection = builder
+                                .serve_connection(TokioIo::new(stream), service(state_c.clone()));
+                            tokio::pin!(connection);
+
+                            tokio::select! {
+                                _ = connection.as_mut() => {}
+                                _ = conn_shutdown_receiver_c.changed().fuse() => {
+                                    connection.as_mut().graceful_shutdown()
+                                }
+                            };
+                        });
+                    }
+                };
+
+                tokio::select! {
                     _ = server.fuse() => {},
-                    _ = shutdown_received.fuse() => {},
+                    _ = shutdown_received.changed().fuse() => {},
                 }
+
+                while (connection_tasks.join_next().await).is_some() {}
             });
         });
 

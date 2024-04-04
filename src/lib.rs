@@ -13,6 +13,8 @@ running http server. The typical usage is as follows:
 
 ```
 # async fn foo() {
+use http_body_util::Full;
+use hyper_util::client::legacy::Client;
 use httptest::{Server, Expectation, matchers::*, responders::*};
 // Start a server running on a local ephemeral port.
 let server = Server::run();
@@ -27,7 +29,7 @@ server.expect(
 // locally running server, or more conveniently provides a server.url() method
 // that gives a fully formed http url to the provided path.
 let url = server.url("/foo");
-let client = hyper::Client::new();
+let client = Client::builder(hyper_util::rt::TokioExecutor::new()).build_http::<Full<bytes::Bytes>>();
 // Issue the GET /foo to the server.
 let resp = client.get(url).await.unwrap();
 

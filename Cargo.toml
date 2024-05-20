@@ -17,7 +17,7 @@ hyper = { version = "1.2", features = ["http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["http1", "http2", "server", "tokio"] }
 http-body-util = "0.1"
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
-tokio = { version = "1.37", features = ["rt-multi-thread", "time"] }
+tokio = { version = "1.37", features = ["macros", "rt-multi-thread", "time"] }
 crossbeam-channel = "0.5.12"
 http = "1.1"
 log = "0.4.21"
@@ -35,4 +35,4 @@ hyper-util = { version = "0.1", features = ["http1", "http2", "client", "tokio",
 pretty_env_logger = "0.5"
 crossbeam-utils = "0.8.19"
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.37", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.37", features = ["rt-multi-thread"] }

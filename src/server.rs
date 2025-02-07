@@ -78,14 +78,22 @@ impl Server {
         }
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
+                let unexpected_requests_message = if state.unexpected_requests.is_empty() {
+                    "(no other unexpected requests)".to_string()
+                } else {
+                    format!(
+                        "There were {} other unexpected requests that you may have expected to match: {:#?}",
+                        state.unexpected_requests.len(),
+                        &state.unexpected_requests,
+                    )
+                };
+
                 panic!(
-                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {}. \
-                    There were {} other unexpected requests that you may have expected to match: {:#?}",
+                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {}. {}",
                     matcher_name(&*expectation.matcher),
                     expectation.hit_count,
                     RangeDisplay(expectation.times),
-                    state.unexpected_requests.len(),
-                    &state.unexpected_requests,
+                    unexpected_requests_message,
                 );
             }
         }

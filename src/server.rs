@@ -79,10 +79,13 @@ impl Server {
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 panic!(
-                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {}",
+                    "Unexpected number of requests for matcher '{:?}'; received {}; expected {}. \
+                    There were {} other unexpected requests that you may have expected to match: {:#?}",
                     matcher_name(&*expectation.matcher),
                     expectation.hit_count,
                     RangeDisplay(expectation.times),
+                    state.unexpected_requests.len(),
+                    &state.unexpected_requests,
                 );
             }
         }

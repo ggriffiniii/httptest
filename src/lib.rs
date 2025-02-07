@@ -16,6 +16,14 @@ running http server. The typical usage is as follows:
 use http_body_util::Full;
 use hyper_util::client::legacy::Client;
 use httptest::{Server, Expectation, matchers::*, responders::*};
+
+// Starting a logger within the test can make debugging a failed test
+// easier. The mock http server will log::debug every request and response
+// received along with what, if any, matcher was found for the request. When
+// env_logger is initialized running the test with `RUST_LOG=httptest=debug
+// cargo test` can provide that information on stderr.
+let _ = pretty_env_logger::try_init();
+
 // Start a server running on a local ephemeral port.
 let server = Server::run();
 // Configure the server to expect a single GET /foo request and respond

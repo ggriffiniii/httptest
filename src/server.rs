@@ -73,7 +73,25 @@ impl Server {
             std::mem::take(&mut *state) // reset server to default state.
         };
         if std::thread::panicking() {
+            // Since unexpected requests are always a mistake in these engineered test
+            // scenarios, if any occur, we should yell about them as they are either an
+            // underlying cause of the original panic and test failure or the test isn't
+            // accounting for every aspect and needs to be updated.
+            //
+            // We can't double panic! because it will lead to an immediate termination
+            // with an ugly backtrace. But since we're already panicking, we get the
+            // same effect by just printing what we would have put in the panic message.
+            if !state.unexpected_requests.is_empty() {
+                println!(
+                    "Received the following unexpected requests: {:#?}",
+                    &state.unexpected_requests
+                );
+            }
+
             // If the test is already panicking don't double panic on drop.
+            //
+            // Additionally, we don't want the noise from the matchers that failed just
+            // because the test only got half-way through.
             return;
         }
         for expectation in state.expected.iter() {
@@ -99,7 +117,7 @@ impl Server {
         }
         if !state.unexpected_requests.is_empty() {
             panic!(
-                "received the following unexpected requests:\n{:#?}",
+                "Received the following unexpected requests:\n{:#?}",
                 &state.unexpected_requests
             );
         }

@@ -68,14 +68,19 @@ impl Server {
     /// Verify all registered expectations. Panic if any are not met, then clear
     /// all expectations leaving the server running in a clean state.
     pub fn verify_and_clear(&mut self) {
+        // If the test is already panicking don't double panic on drop.
+        // Instead simply print the message to stdout.
+        fn safe_panic(args: fmt::Arguments) {
+            if std::thread::panicking() {
+                println!("httptest: {}", args);
+            } else {
+                panic!("{}", args);
+            }
+        }
         let state = {
             let mut state = self.state.lock().expect("mutex poisoned");
             std::mem::take(&mut *state) // reset server to default state.
         };
-        if std::thread::panicking() {
-            // If the test is already panicking don't double panic on drop.
-            return;
-        }
         for expectation in state.expected.iter() {
             if !hit_count_is_valid(expectation.times, expectation.hit_count) {
                 let unexpected_requests_message = if state.unexpected_requests.is_empty() {
@@ -88,20 +93,20 @@ impl Server {
                     )
                 };
 
-                panic!(
+                safe_panic(format_args!(
                     "Unexpected number of requests for matcher '{:?}'; received {}; expected {}. {}",
                     matcher_name(&*expectation.matcher),
                     expectation.hit_count,
                     RangeDisplay(expectation.times),
                     unexpected_requests_message,
-                );
+                ));
             }
         }
         if !state.unexpected_requests.is_empty() {
-            panic!(
+            safe_panic(format_args!(
                 "received the following unexpected requests:\n{:#?}",
                 &state.unexpected_requests
-            );
+            ));
         }
     }
 }

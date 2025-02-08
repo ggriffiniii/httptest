@@ -272,6 +272,30 @@ fn test_outside_of_tokio_context() {
     let _server = httptest::Server::run();
 }
 
+// verify the server does not produce a crash if the server is dropped due to a
+// panic. This can happen if the test panic's and the panic subsequently Drop's
+// the server. On Drop the server typically verifies the expectations and
+// panic's if any are unmet, but that would lead to a double panic which causes
+// an immediate crash.
+#[test]
+#[should_panic]
+fn test_dont_double_panic() {
+    let _ = pretty_env_logger::try_init();
+    // Setup a server to expect a single GET /foo request.
+    let server = httptest::Server::run();
+    server.expect(
+        Expectation::matching(all_of![request::method("GET"), request::path("/foo")])
+            .respond_with(status_code(200)),
+    );
+
+    // test panics before any server expectation validation happens.
+    assert_eq!(1, 2);
+
+    // panic above will drop the server which would normally panic due to the
+    // expectation not being met. However since that would cause a double panic
+    // the server will simply print the error message to stdout instead.
+}
+
 #[tokio::test]
 async fn test_server_custom() {
     let _ = pretty_env_logger::try_init();

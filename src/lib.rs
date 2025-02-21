@@ -351,6 +351,7 @@ macro_rules! vec_of_boxes {
 // re-exports of types from dependent crates that show up in the public api.
 pub use bytes;
 pub use http;
+pub use hyper;
 
 mod into_times;
 pub mod matchers;
